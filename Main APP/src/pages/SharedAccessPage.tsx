@@ -2,8 +2,7 @@ import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { SiteLayout } from '@/components/layout/SiteLayout';
 import { useRecordsStore, useUserStore } from '@/store';
-import { truncateAddress } from '@/lib/utils';
-import { RECORD_TYPES, getRecordDisplayData } from '@/types/records';
+import { getRecordDisplayData } from '@/types/records';
 import type { AccessGrant } from '@/types/records';
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { PROGRAM_ID, prepareRevokeAccessInputs } from '@/lib/aleo-utils';
@@ -14,7 +13,7 @@ const fadeInUp = {
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: { delay: i * 0.1, duration: 0.8, ease: 'easeOut' },
+    transition: { delay: i * 0.1, duration: 0.8, ease: 'easeOut' as const },
   }),
 };
 
@@ -102,7 +101,7 @@ function safeDate(date: Date | string | number | undefined): Date {
 export function SharedAccessPage() {
   const [activeFilter, setActiveFilter] = useState(0);
   const [activeProvider, setActiveProvider] = useState(0);
-  const [revokingToken, setRevokingToken] = useState<string | null>(null);
+  const [_revokingToken, setRevokingToken] = useState<string | null>(null);
   const [toggleStates, setToggleStates] = useState<Record<string, boolean>>({});
 
   const user = useUserStore((state) => state.user);
@@ -127,7 +126,7 @@ export function SharedAccessPage() {
       }));
   }, [accessGrants, user?.address]);
 
-  const handleRevoke = async (accessToken: string) => {
+  const _handleRevoke = async (accessToken: string) => {
     setRevokingToken(accessToken);
     try {
       const inputs = prepareRevokeAccessInputs(accessToken);
@@ -169,12 +168,12 @@ export function SharedAccessPage() {
 
   const provider = DEMO_PROVIDERS[activeProvider];
 
-  const getRecordTitle = (recordId: string) => {
+  const _getRecordTitle = (recordId: string) => {
     const record = records.find((r) => r.recordId === recordId || r.id === recordId);
     return record?.title || 'Unknown Record';
   };
 
-  const getRecordType = (recordId: string) => {
+  const _getRecordType = (recordId: string) => {
     const record = records.find((r) => r.recordId === recordId || r.id === recordId);
     return record?.recordType || 1;
   };

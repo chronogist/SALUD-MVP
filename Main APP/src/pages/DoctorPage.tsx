@@ -192,13 +192,13 @@ function SwitchIcon() {
 // --- Animation variants ---
 const fadeInUp = {
   hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' as const } },
   exit: { opacity: 0, y: -20, transition: { duration: 0.3 } },
 };
 
 const fadeInScale = {
   hidden: { opacity: 0, scale: 0.95 },
-  visible: { opacity: 1, scale: 1, transition: { duration: 0.4, ease: 'easeOut' } },
+  visible: { opacity: 1, scale: 1, transition: { duration: 0.4, ease: 'easeOut' as const } },
   exit: { opacity: 0, scale: 0.95, transition: { duration: 0.3 } },
 };
 
@@ -315,15 +315,30 @@ export function DoctorPage() {
     setScanStatus('verifying');
 
     try {
-      const data: QRCodeData = JSON.parse(decodedText);
+      const raw = JSON.parse(decodedText);
 
-      if (!data.transactionId || !data.recordId || !data.patientAddress) {
-        throw new Error('Invalid QR code format. This may be an older QR code version.');
-      }
-      if (data.version !== 2) {
+      // Normalize v2 (old) and v3 (compact) formats into QRCodeData
+      let data: QRCodeData;
+      if (raw.v === 3) {
+        data = raw as QRCodeData;
+      } else if (raw.version === 2) {
+        // Backward compat with old format
+        data = {
+          v: 3,
+          tx: raw.transactionId,
+          rid: raw.recordId,
+          p: raw.patientAddress,
+          exp: raw.expiresAt,
+          rt: raw.recordType,
+        };
+      } else {
         throw new Error('Unsupported QR code version. Please ask the patient to generate a new code.');
       }
-      if (data.expiresAt < Date.now()) {
+
+      if (!data.tx || !data.rid || !data.p) {
+        throw new Error('Invalid QR code format. Missing required fields.');
+      }
+      if (data.exp < Date.now()) {
         throw new Error('This access has expired. Please ask the patient for a new share.');
       }
 
@@ -361,7 +376,7 @@ export function DoctorPage() {
               const parsed = parseSharedRecordPlaintext(plaintext);
               if (!parsed) continue;
 
-              if (parsed.recordId === data.recordId || parsed.recordId === data.recordId.replace(/field$/, '')) {
+              if (parsed.recordId === data.rid || parsed.recordId === data.rid.replace(/field$/, '')) {
                 let title = 'Shared Medical Record';
                 let description = '';
 
@@ -377,15 +392,15 @@ export function DoctorPage() {
 
                 const recordType = (parsed.recordType >= 1 && parsed.recordType <= 10
                   ? parsed.recordType
-                  : data.recordType || 1) as RecordType;
+                  : data.rt || 1) as RecordType;
 
                 setRecordData({
                   title,
                   description: description || 'Record data decrypted successfully.',
                   recordType,
-                  patientAddress: parsed.originalOwner || data.patientAddress,
-                  expiresAt: new Date(data.expiresAt),
-                  accessToken: parsed.accessToken || data.accessToken,
+                  patientAddress: parsed.originalOwner || data.p,
+                  expiresAt: new Date(data.exp),
+                  accessToken: parsed.accessToken || data.tx,
                 });
 
                 foundRecord = true;
@@ -399,8 +414,8 @@ export function DoctorPage() {
       }
 
       if (!foundRecord) {
-        const recordType = (data.recordType >= 1 && data.recordType <= 10
-          ? data.recordType : 1) as RecordType;
+        const recordType = (data.rt >= 1 && data.rt <= 10
+          ? data.rt : 1) as RecordType;
 
         setRecordData({
           title: `${RECORD_TYPES[recordType].name} Record`,
@@ -409,9 +424,9 @@ export function DoctorPage() {
             'This may happen if the transaction is still being confirmed. ' +
             'Please try again in a few minutes.',
           recordType,
-          patientAddress: data.patientAddress,
-          expiresAt: new Date(data.expiresAt),
-          accessToken: data.accessToken,
+          patientAddress: data.p,
+          expiresAt: new Date(data.exp),
+          accessToken: data.tx,
         });
       }
 
@@ -690,7 +705,7 @@ export function DoctorPage() {
                     {scannedData && (
                       <div className="dp-meta-row">
                         <span className="dp-meta-label"><ShieldIcon size={14} /> Transaction</span>
-                        <span className="dp-meta-value">{truncateAddress(scannedData.transactionId, 8, 6)}</span>
+                        <span className="dp-meta-value">{truncateAddress(scannedData.tx, 8, 6)}</span>
                       </div>
                     )}
                   </div>
