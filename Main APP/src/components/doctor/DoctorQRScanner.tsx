@@ -98,18 +98,30 @@ export function DoctorQRScanner() {
     setScanStatus('verifying');
 
     try {
-      const data: QRCodeData = JSON.parse(decodedText);
+      const raw = JSON.parse(decodedText);
 
-      // Validate QR code format
-      if (!data.transactionId || !data.recordId || !data.patientAddress) {
-        throw new Error('Invalid QR code format. This may be an older QR code version.');
-      }
-
-      if (data.version !== 2) {
+      // Normalize v2 (old) and v3 (compact) formats into QRCodeData
+      let data: QRCodeData;
+      if (raw.v === 3) {
+        data = raw as QRCodeData;
+      } else if (raw.version === 2) {
+        data = {
+          v: 3,
+          tx: raw.transactionId,
+          rid: raw.recordId,
+          p: raw.patientAddress,
+          exp: raw.expiresAt,
+          rt: raw.recordType,
+        };
+      } else {
         throw new Error('Unsupported QR code version. Please ask the patient to generate a new code.');
       }
 
-      if (data.expiresAt < Date.now()) {
+      if (!data.tx || !data.rid || !data.p) {
+        throw new Error('Invalid QR code format. Missing required fields.');
+      }
+
+      if (data.exp < Date.now()) {
         throw new Error('This access has expired. Please ask the patient for a new share.');
       }
 
@@ -157,7 +169,7 @@ export function DoctorQRScanner() {
               if (!parsed) continue;
 
               // Match by record_id from the QR code
-              if (parsed.recordId === data.recordId || parsed.recordId === data.recordId.replace(/field$/, '')) {
+              if (parsed.recordId === data.rid || parsed.recordId === data.rid.replace(/field$/, '')) {
                 // Parse the medical data from field elements
                 let title = 'Shared Medical Record';
                 let description = '';
@@ -174,15 +186,15 @@ export function DoctorQRScanner() {
 
                 const recordType = (parsed.recordType >= 1 && parsed.recordType <= 10
                   ? parsed.recordType
-                  : data.recordType || 1) as RecordType;
+                  : data.rt || 1) as RecordType;
 
                 setRecordData({
                   title,
                   description: description || 'Record data decrypted successfully.',
                   recordType,
-                  patientAddress: parsed.originalOwner || data.patientAddress,
-                  expiresAt: new Date(data.expiresAt),
-                  accessToken: parsed.accessToken || data.accessToken,
+                  patientAddress: parsed.originalOwner || data.p,
+                  expiresAt: new Date(data.exp),
+                  accessToken: parsed.accessToken || data.tx,
                 });
 
                 foundRecord = true;
@@ -198,9 +210,8 @@ export function DoctorQRScanner() {
       if (!foundRecord) {
         // The record may not have been synced yet, or the transaction is still pending.
         // Show basic info from the QR code with a note.
-        const recordType = (data.recordType >= 1 && data.recordType <= 10
-          ? data.recordType
-          : 1) as RecordType;
+        const recordType = (data.rt >= 1 && data.rt <= 10
+          ? data.rt : 1) as RecordType;
 
         setRecordData({
           title: `${RECORD_TYPES[recordType].name} Record`,
@@ -209,9 +220,9 @@ export function DoctorQRScanner() {
             'This may happen if the transaction is still being confirmed. ' +
             'Please try again in a few minutes.',
           recordType,
-          patientAddress: data.patientAddress,
-          expiresAt: new Date(data.expiresAt),
-          accessToken: data.accessToken,
+          patientAddress: data.p,
+          expiresAt: new Date(data.exp),
+          accessToken: data.tx,
         });
       }
 
@@ -397,7 +408,7 @@ export function DoctorQRScanner() {
                           Transaction
                         </span>
                         <span className="font-mono text-xs text-slate-700">
-                          {truncateAddress(scannedData.transactionId, 8, 6)}
+                          {truncateAddress(scannedData.tx, 8, 6)}
                         </span>
                       </div>
                     )}
