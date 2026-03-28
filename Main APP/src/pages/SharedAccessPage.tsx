@@ -4,8 +4,6 @@ import { SiteLayout } from '@/components/layout/SiteLayout';
 import { useRecordsStore, useUserStore } from '@/store';
 import { getRecordDisplayData } from '@/types/records';
 import type { AccessGrant } from '@/types/records';
-import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
-import { PROGRAM_ID, prepareRevokeAccessInputs } from '@/lib/aleo-utils';
 import './SharedAccessPage.css';
 
 const fadeInUp = {
@@ -101,14 +99,12 @@ function safeDate(date: Date | string | number | undefined): Date {
 export function SharedAccessPage() {
   const [activeFilter, setActiveFilter] = useState(0);
   const [activeProvider, setActiveProvider] = useState(0);
-  const [_revokingToken, setRevokingToken] = useState<string | null>(null);
   const [toggleStates, setToggleStates] = useState<Record<string, boolean>>({});
 
   const user = useUserStore((state) => state.user);
   const accessGrants = useRecordsStore((state) => state.accessGrants);
   const records = useRecordsStore((state) => state.records);
   const revokeAccessGrant = useRecordsStore((state) => state.revokeAccessGrant);
-  const { executeTransaction } = useWallet();
 
   // Get user's records for the permissions table
   const userRecords = useMemo(() => {
@@ -125,26 +121,6 @@ export function SharedAccessPage() {
         isExpired: safeDate(g.expiresAt) < new Date(),
       }));
   }, [accessGrants, user?.address]);
-
-  const _handleRevoke = async (accessToken: string) => {
-    setRevokingToken(accessToken);
-    try {
-      const inputs = prepareRevokeAccessInputs(accessToken);
-      await executeTransaction({
-        program: PROGRAM_ID,
-        function: 'revoke_access',
-        inputs,
-        fee: 50000,
-        privateFee: false,
-      });
-      revokeAccessGrant(accessToken);
-    } catch (error) {
-      console.error('Revoke error:', error);
-      revokeAccessGrant(accessToken);
-    } finally {
-      setRevokingToken(null);
-    }
-  };
 
   const handleRevokeAll = () => {
     const activeTokens = userGrants
@@ -167,16 +143,6 @@ export function SharedAccessPage() {
   };
 
   const provider = DEMO_PROVIDERS[activeProvider];
-
-  const _getRecordTitle = (recordId: string) => {
-    const record = records.find((r) => r.recordId === recordId || r.id === recordId);
-    return record?.title || 'Unknown Record';
-  };
-
-  const _getRecordType = (recordId: string) => {
-    const record = records.find((r) => r.recordId === recordId || r.id === recordId);
-    return record?.recordType || 1;
-  };
 
   return (
     <SiteLayout mainClassName="sp-main">

@@ -8,7 +8,6 @@ import {
   Share2,
   Timer,
   Shield,
-  AlertTriangle,
   Download,
   RefreshCw,
   XCircle,
@@ -37,6 +36,7 @@ import { useUserStore, useRecordsStore } from '@/store';
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { TransactionStatus } from '@provablehq/aleo-types';
 import { PROGRAM_ID, prepareShareRecordInputs } from '@/lib/aleo-utils';
+import { useSyncRecords } from '@/hooks/useSyncRecords';
 
 type Step = 'configure' | 'submitting' | 'share' | 'error';
 
@@ -63,6 +63,7 @@ export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModa
   const user = useUserStore((state) => state.user);
   const createAccessGrant = useRecordsStore((state) => state.createAccessGrant);
   const { executeTransaction, transactionStatus: getTransactionStatus } = useWallet();
+  const { sync } = useSyncRecords();
 
   useEffect(() => {
     if (!open) {
@@ -178,19 +179,38 @@ export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModa
       return;
     }
 
-    // Need the raw record plaintext to pass as transition input
-    if (!record.recordPlaintext) {
-      setAddressError('Record data not available. Please sync your records from the blockchain first.');
-      return;
-    }
-
     setAddressError(null);
     setTransactionError(null);
     setStep('submitting');
 
     try {
+      // If recordPlaintext is missing, auto-sync to fetch it from the wallet
+      let plaintext = record.recordPlaintext;
+      if (!plaintext) {
+        try {
+          await sync();
+          // After sync, find the updated record in the store by matching title + owner
+          const updatedRecords = useRecordsStore.getState().records;
+          const matched = updatedRecords.find(
+            (r) =>
+              r.recordPlaintext &&
+              r.ownerAddress === record.ownerAddress &&
+              (r.recordId === record.recordId || r.title === record.title)
+          );
+          plaintext = matched?.recordPlaintext;
+        } catch {
+          // sync failed, continue without
+        }
+      }
+
+      if (!plaintext) {
+        setAddressError('Could not find the record on the blockchain. Please ensure it has been confirmed on-chain and try again.');
+        setStep('configure');
+        return;
+      }
+
       const inputs = prepareShareRecordInputs(
-        record.recordPlaintext,
+        plaintext,
         doctorAddress,
         durationBlocks
       );
@@ -259,17 +279,16 @@ export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModa
     img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
   };
 
-  // Build QR data — small, no medical data
+  // Build QR data — compact keys to keep QR code scannable
   const qrData: QRCodeData | null =
     transactionId && record && user
       ? {
-          version: 2,
-          transactionId,
-          accessToken: accessToken || transactionId,
-          recordId: record.recordId,
-          patientAddress: user.address,
-          expiresAt: expiresAt?.getTime() || 0,
-          recordType: record.recordType,
+          v: 3,
+          tx: transactionId,
+          rid: record.recordId,
+          p: user.address,
+          exp: expiresAt?.getTime() || 0,
+          rt: record.recordType,
         }
       : null;
 
@@ -383,20 +402,10 @@ export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModa
                 </div>
               )}
 
-              {!record.recordPlaintext && (
-                <div className="flex items-start gap-3 rounded-lg bg-warning-50 p-4">
-                  <AlertTriangle className="mt-0.5 h-5 w-5 text-warning-600" />
-                  <p className="text-sm text-warning-700">
-                    This record needs to be synced from the blockchain before sharing.
-                    Please sync your records first.
-                  </p>
-                </div>
-              )}
-
               <Button
                 className="w-full"
                 onClick={handleShare}
-                disabled={!record.recordPlaintext || !doctorAddress}
+                disabled={!doctorAddress}
               >
                 <Shield size={16} />
                 Share on Blockchain
@@ -449,7 +458,7 @@ export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModa
                     id="qr-code-svg"
                     value={JSON.stringify(qrData)}
                     size={200}
-                    level="H"
+                    level="M"
                     includeMargin
                     imageSettings={{
                       src: '/logo-icon.svg',

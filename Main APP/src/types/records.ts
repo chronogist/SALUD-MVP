@@ -128,13 +128,12 @@ export interface AccessGrant {
  * to locate and verify their shared record.
  */
 export interface QRCodeData {
-  version: 2;
-  transactionId: string; // The share_record transaction ID
-  accessToken: string; // On-chain access token (field) for verification
-  recordId: string; // Which record was shared
-  patientAddress: string; // Who shared it
-  expiresAt: number; // Client-calculated expiration (Unix ms)
-  recordType: RecordType; // Record category for display
+  v: 3;                   // version
+  tx: string;             // transactionId (share_record tx)
+  rid: string;            // recordId
+  p: string;              // patientAddress
+  exp: number;            // expiresAt (Unix ms)
+  rt: RecordType;         // recordType
 }
 
 /**

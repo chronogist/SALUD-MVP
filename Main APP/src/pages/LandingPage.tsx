@@ -48,7 +48,7 @@ const fadeIn = (delay: number) => ({
   visible: {
     opacity: 1,
     y: 0,
-    transition: { delay, duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] },
+    transition: { delay, duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number] },
   },
 });
 
@@ -57,7 +57,7 @@ const cardHover = {
   visible: (delay: number) => ({
     opacity: 1,
     y: 0,
-    transition: { delay, duration: 0.7, ease: [0.25, 0.46, 0.45, 0.94] },
+    transition: { delay, duration: 0.7, ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number] },
   }),
 };
 

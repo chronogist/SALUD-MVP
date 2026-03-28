@@ -21,7 +21,7 @@ import { formatDateTime, truncateAddress } from '@/lib/utils';
 import { RECORD_TYPES, type QRCodeData, type RecordType } from '@/types/records';
 import { useUserStore } from '@/store';
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
-import { PROGRAM_ID, parseSharedRecordPlaintext, fieldElementsToString } from '@/lib/aleo-utils';
+import { PROGRAM_ID, parseSharedRecordPlaintext } from '@/lib/aleo-utils';
 
 type ScanStatus = 'idle' | 'scanning' | 'verifying' | 'success' | 'error';
 
