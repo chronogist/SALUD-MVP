@@ -32,7 +32,7 @@ import { RECORD_TYPES, type RecordType } from '@/types/records';
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { useRecordsStore, useUserStore } from '@/store';
 import { useSyncRecords } from '@/hooks/useSyncRecords';
-import { prepareCreateRecordInputs, inputsToArray } from '@/lib/aleo-utils';
+import { prepareCreateRecordInputs, inputsToArray, PROGRAM_ID } from '@/lib/aleo-utils';
 import { TransactionStatus } from '@provablehq/aleo-types';
 
 const iconMap: Record<string, React.ReactNode> = {
@@ -229,7 +229,7 @@ export function CreateRecordModal({ open, onOpenChange }: CreateRecordModalProps
       );
 
       const tx = await executeTransaction({
-        program: 'salud_health_records_v4.aleo',
+        program: PROGRAM_ID,
         function: 'create_record',
         inputs: inputsToArray(inputs),
         fee: 100000,

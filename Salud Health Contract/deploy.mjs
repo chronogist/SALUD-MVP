@@ -1,5 +1,5 @@
 import { Account, AleoNetworkClient, ProgramManager, AleoKeyProvider, initThreadPool } from '@provablehq/sdk';
-import * as fs from 'fs';
+import fs from 'fs';
 
 async function main() {
   console.log('Initializing thread pool...');
@@ -34,8 +34,8 @@ async function main() {
     console.log('Program not found on-chain — proceeding with deployment.');
   }
 
-  // Estimate fee
-  const fee = 13_000_000; // 13 credits in microcredits
+  // Fee in microcredits (13 credits)
+  const fee = 13_000_000;
   console.log(`Fee: ${fee / 1_000_000} credits`);
 
   try {
@@ -43,7 +43,6 @@ async function main() {
     const txId = await programManager.deploy(programSource, fee, false);
     console.log('Deployment broadcast successful!');
     console.log('Transaction ID:', txId);
-    console.log(`Check status: ${endpoint}/testnet/transaction/${txId}`);
   } catch (error) {
     console.error('Deployment failed:', error);
   }

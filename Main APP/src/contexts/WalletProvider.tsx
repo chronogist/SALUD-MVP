@@ -31,9 +31,10 @@ export const WalletProvider: FC<WalletProviderProps> = ({ children }) => {
 
   // Programs that this app interacts with - CRITICAL for Shield wallet to work!
   // Must list all programs that will be used for transactions
+  // Update the program ID here when deploying a new contract version
   const programs = useMemo(() => [
     'credits.aleo',
-    'salud_health_records_v4.aleo',
+    'salud_records.aleo',  // Must match PROGRAM_ID in aleo-utils.ts
   ], []);
 
   return (

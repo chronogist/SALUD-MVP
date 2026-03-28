@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -12,6 +12,7 @@ import {
   Download,
   RefreshCw,
   XCircle,
+  Loader2,
 } from 'lucide-react';
 import {
   Dialog,
@@ -33,7 +34,11 @@ import {
 import { copyToClipboard, blocksToTime, truncateAddress } from '@/lib/utils';
 import { DURATION_OPTIONS, RECORD_TYPES, type MedicalRecord, type QRCodeData, type RecordType, getRecordDisplayData } from '@/types/records';
 import { useUserStore, useRecordsStore } from '@/store';
-import { encryptWithPublicKey, generateViewKey, derivePublicKey } from '@/lib/crypto-utils';
+import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
+import { TransactionStatus } from '@provablehq/aleo-types';
+import { PROGRAM_ID, prepareShareRecordInputs } from '@/lib/aleo-utils';
+
+type Step = 'configure' | 'submitting' | 'share' | 'error';
 
 interface ShareRecordModalProps {
   open: boolean;
@@ -42,32 +47,42 @@ interface ShareRecordModalProps {
 }
 
 export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModalProps) {
-  const [step, setStep] = useState<'configure' | 'share'>('configure');
+  const [step, setStep] = useState<Step>('configure');
   const [doctorAddress, setDoctorAddress] = useState('');
   const [durationBlocks, setDurationBlocks] = useState(5760);
+  const [addressError, setAddressError] = useState<string | null>(null);
+  const [transactionError, setTransactionError] = useState<string | null>(null);
+  const [transactionId, setTransactionId] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
-  const [copied, setCopied] = useState(false);
   const [countdown, setCountdown] = useState<string>('');
-  const [addressError, setAddressError] = useState<string | null>(null);
-  const [encryptedViewKey, setEncryptedViewKey] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const user = useUserStore((state) => state.user);
   const createAccessGrant = useRecordsStore((state) => state.createAccessGrant);
+  const { executeTransaction, transactionStatus: getTransactionStatus } = useWallet();
 
   useEffect(() => {
     if (!open) {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
       setStep('configure');
       setDoctorAddress('');
       setDurationBlocks(5760);
+      setAddressError(null);
+      setTransactionError(null);
+      setTransactionId(null);
       setAccessToken(null);
       setExpiresAt(null);
       setCopied(false);
-      setAddressError(null);
-      setEncryptedViewKey(null);
     }
   }, [open]);
 
+  // Countdown timer
   useEffect(() => {
     if (!expiresAt) return;
 
@@ -95,54 +110,126 @@ export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModa
 
     updateCountdown();
     const interval = setInterval(updateCountdown, 1000);
-
     return () => clearInterval(interval);
   }, [expiresAt]);
 
-  const handleGenerate = async () => {
+  const pollTransactionStatus = async (tempTxId: string) => {
+    try {
+      const statusResponse = await getTransactionStatus(tempTxId);
+
+      if (statusResponse.status.toLowerCase() === TransactionStatus.ACCEPTED.toLowerCase()) {
+        // Transaction confirmed on-chain
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+
+        const finalTxId = statusResponse.transactionId || tempTxId;
+        setTransactionId(finalTxId);
+
+        // Calculate expiration from now
+        const now = new Date();
+        const expiration = new Date(now.getTime() + durationBlocks * 15 * 1000);
+        setExpiresAt(expiration);
+
+        // Store grant locally for the SharedAccessPage
+        createAccessGrant({
+          accessToken: accessToken || finalTxId,
+          recordId: record?.recordId || record?.id || '',
+          patientAddress: user?.address || '',
+          doctorAddress: doctorAddress,
+          grantedAt: now,
+          expiresAt: expiration,
+          durationBlocks,
+          isRevoked: false,
+        });
+
+        setStep('share');
+      } else if (
+        statusResponse.status.toLowerCase() === TransactionStatus.FAILED.toLowerCase() ||
+        statusResponse.status.toLowerCase() === TransactionStatus.REJECTED.toLowerCase()
+      ) {
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+        setTransactionError(statusResponse.error || 'Transaction was rejected by the network.');
+        setStep('error');
+      }
+    } catch (error) {
+      console.error('Error polling transaction status:', error);
+    }
+  };
+
+  const handleShare = async () => {
     if (!record || !user) return;
 
-    if (doctorAddress && !doctorAddress.startsWith('aleo1')) {
-      setAddressError('Invalid Aleo address format');
+    // Validate doctor address
+    if (!doctorAddress) {
+      setAddressError("Doctor's Aleo address is required for secure sharing.");
+      return;
+    }
+    if (!doctorAddress.startsWith('aleo1')) {
+      setAddressError('Invalid Aleo address format. Must start with aleo1.');
+      return;
+    }
+    if (doctorAddress === user.address) {
+      setAddressError('Cannot share a record with yourself.');
+      return;
+    }
+
+    // Need the raw record plaintext to pass as transition input
+    if (!record.recordPlaintext) {
+      setAddressError('Record data not available. Please sync your records from the blockchain first.');
       return;
     }
 
     setAddressError(null);
+    setTransactionError(null);
+    setStep('submitting');
 
-    // Generate access token (simplified - in production would use blockchain)
-    const token = `token_${Math.random().toString(36).substring(2, 15)}_${Date.now()}`;
-    
-    // Calculate expiration time
-    const now = new Date();
-    const expirationTime = new Date(now.getTime() + (durationBlocks * 15 * 1000)); // 15 sec per block
-    
-    // Generate or get view key for this record
-    const viewKey = user.viewKey || generateViewKey(user.address);
-    
-    // Encrypt view key with doctor's public key (or use patient's if no specific doctor)
-    const doctorPublicKey = doctorAddress ? derivePublicKey(doctorAddress) : derivePublicKey(user.address);
-    const encViewKey = encryptWithPublicKey(viewKey, doctorPublicKey);
-    
-    createAccessGrant({
-      accessToken: token,
-      recordId: record.recordId || record.id,
-      patientAddress: user.address,
-      doctorAddress: doctorAddress || '',
-      grantedAt: now,
-      expiresAt: expirationTime,
-      durationBlocks,
-      isRevoked: false,
-    });
+    try {
+      const inputs = prepareShareRecordInputs(
+        record.recordPlaintext,
+        doctorAddress,
+        durationBlocks
+      );
 
-    setAccessToken(token);
-    setExpiresAt(expirationTime);
-    setEncryptedViewKey(encViewKey);
-    setStep('share');
+      const tx = await executeTransaction({
+        program: PROGRAM_ID,
+        function: 'share_record',
+        inputs,
+        fee: 150000,
+        privateFee: false,
+      });
+
+      if (tx?.transactionId) {
+        setTransactionId(tx.transactionId);
+        // The access token is an output of the transition — we'll get it from the tx
+        // For now, use the transaction ID as a reference
+        setAccessToken(tx.transactionId);
+
+        // Poll for confirmation
+        pollingIntervalRef.current = setInterval(() => {
+          pollTransactionStatus(tx.transactionId);
+        }, 2000);
+        pollTransactionStatus(tx.transactionId);
+      } else {
+        setTransactionError('Failed to get transaction ID from wallet.');
+        setStep('error');
+      }
+    } catch (error) {
+      console.error('Share transaction error:', error);
+      setTransactionError(
+        error instanceof Error ? error.message : 'Failed to execute share transaction.'
+      );
+      setStep('error');
+    }
   };
 
   const handleCopyToken = async () => {
-    if (!accessToken) return;
-    const success = await copyToClipboard(accessToken);
+    if (!transactionId) return;
+    const success = await copyToClipboard(transactionId);
     if (success) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -164,7 +251,7 @@ export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModa
       ctx?.drawImage(img, 0, 0);
       const pngFile = canvas.toDataURL('image/png');
       const downloadLink = document.createElement('a');
-      downloadLink.download = `salud-qr-${title.replace(/\s+/g, '-').toLowerCase()}.png`;
+      downloadLink.download = `salud-share-${title.replace(/\s+/g, '-').toLowerCase()}.png`;
       downloadLink.href = pngFile;
       downloadLink.click();
     };
@@ -172,17 +259,19 @@ export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModa
     img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
   };
 
-  const qrData: QRCodeData | null = accessToken && record && user && encryptedViewKey
-    ? {
-        version: 1,
-        accessToken,
-        recordId: record.recordId,
-        patientAddress: user.address,
-        expiresAt: expiresAt?.getTime() || 0,
-        encryptedViewKey,
-        encryptedData: record.data,
-      }
-    : null;
+  // Build QR data — small, no medical data
+  const qrData: QRCodeData | null =
+    transactionId && record && user
+      ? {
+          version: 2,
+          transactionId,
+          accessToken: accessToken || transactionId,
+          recordId: record.recordId,
+          patientAddress: user.address,
+          expiresAt: expiresAt?.getTime() || 0,
+          recordType: record.recordType,
+        }
+      : null;
 
   if (!record) return null;
 
@@ -190,7 +279,11 @@ export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModa
   const { title } = getRecordDisplayData(record);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => {
+      // Don't allow closing while transaction is in progress
+      if (step === 'submitting') return;
+      onOpenChange(v);
+    }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -201,12 +294,17 @@ export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModa
           </DialogTitle>
           <DialogDescription>
             {step === 'configure'
-              ? 'Configure access settings for sharing this record.'
-              : 'Share this QR code with your healthcare provider.'}
+              ? 'Share this record securely via the Aleo blockchain.'
+              : step === 'submitting'
+                ? 'Executing transaction on the Aleo blockchain...'
+                : step === 'share'
+                  ? 'Share this QR code with your healthcare provider.'
+                  : 'Something went wrong with the transaction.'}
           </DialogDescription>
         </DialogHeader>
 
         <AnimatePresence mode="wait">
+          {/* STEP 1: Configure */}
           {step === 'configure' && (
             <motion.div
               key="configure"
@@ -223,15 +321,18 @@ export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModa
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">
                   Doctor's Aleo Address
-                  <span className="ml-1 text-xs font-normal text-slate-400">(Optional)</span>
+                  <span className="ml-1 text-xs font-normal text-danger-500">*Required</span>
                 </label>
                 <Input
                   placeholder="aleo1..."
                   value={doctorAddress}
-                  onChange={(e) => setDoctorAddress(e.target.value)}
+                  onChange={(e) => {
+                    setDoctorAddress(e.target.value);
+                    setAddressError(null);
+                  }}
                 />
                 <p className="text-xs text-slate-500">
-                  Leave empty to allow any doctor to access with the QR code.
+                  The doctor's record will be encrypted to this address by the Aleo network.
                 </p>
               </div>
 
@@ -262,15 +363,15 @@ export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModa
                 </Select>
               </div>
 
-              <div className="flex items-start gap-3 rounded-lg bg-warning-50 p-4">
-                <AlertTriangle className="mt-0.5 h-5 w-5 text-warning-600" />
+              <div className="flex items-start gap-3 rounded-lg bg-primary-50 p-4">
+                <Shield className="mt-0.5 h-5 w-5 text-primary-600" />
                 <div>
-                  <p className="text-sm font-medium text-warning-900">
-                    Share Responsibly
+                  <p className="text-sm font-medium text-primary-900">
+                    Secured by Aleo
                   </p>
-                  <p className="text-xs text-warning-700">
-                    Only share this QR code with trusted healthcare providers.
-                    Access will automatically expire after {blocksToTime(durationBlocks)}.
+                  <p className="text-xs text-primary-700">
+                    This creates an on-chain transaction. The doctor's copy is encrypted
+                    to their address by the Aleo network — no one else can read it.
                   </p>
                 </div>
               </div>
@@ -282,12 +383,58 @@ export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModa
                 </div>
               )}
 
-              <Button className="w-full" onClick={handleGenerate}>
-                Generate QR Code
+              {!record.recordPlaintext && (
+                <div className="flex items-start gap-3 rounded-lg bg-warning-50 p-4">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 text-warning-600" />
+                  <p className="text-sm text-warning-700">
+                    This record needs to be synced from the blockchain before sharing.
+                    Please sync your records first.
+                  </p>
+                </div>
+              )}
+
+              <Button
+                className="w-full"
+                onClick={handleShare}
+                disabled={!record.recordPlaintext || !doctorAddress}
+              >
+                <Shield size={16} />
+                Share on Blockchain
               </Button>
             </motion.div>
           )}
 
+          {/* STEP 2: Submitting transaction */}
+          {step === 'submitting' && (
+            <motion.div
+              key="submitting"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="flex flex-col items-center gap-4 py-12"
+            >
+              <div className="relative">
+                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary-100">
+                  <Shield size={40} className="text-primary-600" />
+                </div>
+                <div className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-md">
+                  <Loader2 size={20} className="animate-spin text-primary-600" />
+                </div>
+              </div>
+
+              <div className="text-center">
+                <p className="font-medium text-slate-900">Sharing Record on Blockchain</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Creating an encrypted copy for the doctor...
+                </p>
+                <p className="mt-2 text-xs text-slate-400">
+                  This may take a moment. Please don't close this window.
+                </p>
+              </div>
+            </motion.div>
+          )}
+
+          {/* STEP 3: Share QR code */}
           {step === 'share' && qrData && (
             <motion.div
               key="share"
@@ -327,11 +474,11 @@ export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModa
 
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">
-                  Access Token
+                  Transaction ID
                 </label>
                 <div className="flex items-center gap-2">
                   <Input
-                    value={accessToken || ''}
+                    value={transactionId || ''}
                     readOnly
                     className="font-mono text-xs"
                   />
@@ -362,14 +509,12 @@ export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModa
                     {blocksToTime(durationBlocks)}
                   </span>
                 </div>
-                {doctorAddress && (
-                  <div className="mt-2 flex items-center justify-between">
-                    <span className="text-xs text-slate-500">Restricted to</span>
-                    <span className="text-sm font-mono text-slate-900 truncate max-w-[150px]" title={doctorAddress}>
-                      {truncateAddress(doctorAddress)}
-                    </span>
-                  </div>
-                )}
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-xs text-slate-500">Shared with</span>
+                  <span className="text-sm font-mono text-slate-900 truncate max-w-[150px]" title={doctorAddress}>
+                    {truncateAddress(doctorAddress)}
+                  </span>
+                </div>
               </div>
 
               <div className="flex gap-2">
@@ -381,20 +526,37 @@ export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModa
                   <Download size={16} />
                   Download QR
                 </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => setStep('configure')}
-                >
-                  <RefreshCw size={16} />
-                  New Code
-                </Button>
               </div>
 
               <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
                 <Shield size={14} className="text-success-500" />
-                Secured by Aleo blockchain
+                Verified on Aleo blockchain
               </div>
+            </motion.div>
+          )}
+
+          {/* ERROR state */}
+          {step === 'error' && (
+            <motion.div
+              key="error"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="flex flex-col items-center gap-4 py-8"
+            >
+              <div className="flex h-24 w-24 items-center justify-center rounded-full bg-danger-100">
+                <XCircle size={40} className="text-danger-600" />
+              </div>
+
+              <div className="text-center">
+                <p className="font-medium text-slate-900">Transaction Failed</p>
+                <p className="mt-1 text-sm text-slate-500">{transactionError}</p>
+              </div>
+
+              <Button variant="outline" onClick={() => setStep('configure')}>
+                <RefreshCw size={16} />
+                Try Again
+              </Button>
             </motion.div>
           )}
         </AnimatePresence>

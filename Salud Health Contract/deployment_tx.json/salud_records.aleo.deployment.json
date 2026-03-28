@@ -1,0 +1,106 @@
+{
+  "type": "deploy",
+  "id": "at1p4cqprq9kyelc7jnndlse5shvd9zuawyvlwt7wvtgqhmvc6v2cqq0stf20",
+  "owner": {
+    "address": "aleo1gl4a57rcxyjvmzcgjscjqe466ecdr7uk4gdp7sf5pctu6tjvv5qs60lw8y",
+    "signature": "sign100cxrwm3js54dkflmk6q45smjclsnxks9d3pncc8x5zr50ffycpvsvtegvqjvs49rld3qtt5z87nfs5qvq8qgt3ewgtc87q8h2g9sqhz6gxt935a72sfur9jlz7vmqxvp0x8qqweq6jw22suag7jkx74pkhg8rxta8g2kdulawn69z9k78usgftygxtcwwgvprjaravu0w4sjc24q4a"
+  },
+  "deployment": {
+    "edition": 0,
+    "program": "program salud_records.aleo;\n\nrecord MedicalRecord:\n    owner as address.private;\n    record_id as field.private;\n    data_hash as field.private;\n    data_part1 as field.private;\n    data_part2 as field.private;\n    data_part3 as field.private;\n    data_part4 as field.private;\n    data_part5 as field.private;\n    data_part6 as field.private;\n    data_part7 as field.private;\n    data_part8 as field.private;\n    record_type as u8.private;\n    created_at as u32.private;\n    version as u8.private;\n\nrecord SharedMedicalRecord:\n    owner as address.private;\n    record_id as field.private;\n    original_owner as address.private;\n    data_hash as field.private;\n    data_part1 as field.private;\n    data_part2 as field.private;\n    data_part3 as field.private;\n    data_part4 as field.private;\n    data_part5 as field.private;\n    data_part6 as field.private;\n    data_part7 as field.private;\n    data_part8 as field.private;\n    record_type as u8.private;\n    duration_blocks as u32.private;\n    access_token as field.private;\n\nstruct AccessGrant:\n    patient as address;\n    doctor as address;\n    record_id as field;\n    access_token as field;\n    granted_at as u32;\n    expires_at as u32;\n    is_revoked as boolean;\n\nstruct RecordMetadata:\n    patient as address;\n    record_id as field;\n    record_type as u8;\n    created_at as u32;\n    is_active as boolean;\n\nstruct RecordIdInput:\n    patient as address;\n    data_hash as field;\n    nonce as field;\n\nstruct AccessTokenInput:\n    record_id as field;\n    doctor as address;\n    patient as address;\n    nonce as field;\n\nmapping access_grants:\n    key as field.public;\n    value as AccessGrant.public;\n\nmapping record_metadata:\n    key as field.public;\n    value as RecordMetadata.public;\n\nmapping patient_record_count:\n    key as field.public;\n    value as u64.public;\n\nmapping access_token_valid:\n    key as field.public;\n    value as boolean.public;\n\nfunction create_record:\n    input r0 as field.private;\n    input r1 as field.private;\n    input r2 as field.private;\n    input r3 as field.private;\n    input r4 as field.private;\n    input r5 as field.private;\n    input r6 as field.private;\n    input r7 as field.private;\n    input r8 as u8.private;\n    input r9 as field.private;\n    input r10 as field.private;\n    input r11 as boolean.private;\n    gte r8 1u8 into r12;\n    lte r8 10u8 into r13;\n    and r12 r13 into r14;\n    assert.eq r14 true;\n    cast self.caller r9 r10 into r15 as RecordIdInput;\n    hash.bhp256 r15 into r16 as field;\n    cast self.caller r16 r9 r0 r1 r2 r3 r4 r5 r6 r7 r8 0u32 1u8 into r17 as MedicalRecord.record;\n    async create_record self.caller r16 r8 r11 into r18;\n    output r17 as MedicalRecord.record;\n    output r18 as salud_records.aleo/create_record.future;\n\nfinalize create_record:\n    input r0 as address.public;\n    input r1 as field.public;\n    input r2 as u8.public;\n    input r3 as boolean.public;\n    cast r0 into r4 as field;\n    get.or_use patient_record_count[r4] 0u64 into r5;\n    add r5 1u64 into r6;\n    set r6 into patient_record_count[r4];\n    branch.eq r3 false to end_then_0_0;\n    cast r0 r1 r2 block.height true into r7 as RecordMetadata;\n    set r7 into record_metadata[r1];\n    branch.eq true true to end_otherwise_0_1;\n    position end_then_0_0;\n    position end_otherwise_0_1;\n\nfunction share_record:\n    input r0 as MedicalRecord.record;\n    input r1 as address.private;\n    input r2 as u32.private;\n    input r3 as field.private;\n    assert.neq self.caller r1;\n    lt r2 240u32 into r4;\n    ternary r4 240u32 r2 into r5;\n    gt r5 40320u32 into r6;\n    ternary r6 40320u32 r5 into r7;\n    cast r0.record_id r1 self.caller r3 into r8 as AccessTokenInput;\n    hash.bhp256 r8 into r9 as field;\n    cast self.caller r0.record_id r0.data_hash r0.data_part1 r0.data_part2 r0.data_part3 r0.data_part4 r0.data_part5 r0.data_part6 r0.data_part7 r0.data_part8 r0.record_type r0.created_at r0.version into r10 as MedicalRecord.record;\n    cast r1 r0.record_id self.caller r0.data_hash r0.data_part1 r0.data_part2 r0.data_part3 r0.data_part4 r0.data_part5 r0.data_part6 r0.data_part7 r0.data_part8 r0.record_type r7 r9 into r11 as SharedMedicalRecord.record;\n    async share_record self.caller r1 r0.record_id r9 r7 into r12;\n    output r10 as MedicalRecord.record;\n    output r11 as SharedMedicalRecord.record;\n    output r9 as field.private;\n    output r12 as salud_records.aleo/share_record.future;\n\nfinalize share_record:\n    input r0 as address.public;\n    input r1 as address.public;\n    input r2 as field.public;\n    input r3 as field.public;\n    input r4 as u32.public;\n    add block.height r4 into r5;\n    cast r0 r1 r2 r3 block.height r5 false into r6 as AccessGrant;\n    set r6 into access_grants[r3];\n    set true into access_token_valid[r3];\n\nfunction revoke_access:\n    input r0 as field.private;\n    async revoke_access self.caller r0 into r1;\n    output r1 as salud_records.aleo/revoke_access.future;\n\nfinalize revoke_access:\n    input r0 as address.public;\n    input r1 as field.public;\n    get access_grants[r1] into r2;\n    assert.eq r2.patient r0;\n    cast r2.patient r2.doctor r2.record_id r2.access_token r2.granted_at r2.expires_at true into r3 as AccessGrant;\n    set r3 into access_grants[r1];\n    set false into access_token_valid[r1];\n\nconstructor:\n    assert.eq program_owner aleo1gl4a57rcxyjvmzcgjscjqe466ecdr7uk4gdp7sf5pctu6tjvv5qs60lw8y;\n",
+    "verifying_keys": [
+      [
+        "create_record",
+        [
+          "verifier1qysqqqqqqqqqqqqvdyqsqqqqqqqxx6gpqqqqqqqqk68sxqqqqqqqqcx0qvqqqqqqqpyn5qsqqqqqqqqvqqqqqqqqqqqw4xuzasvt9578wza5ume9v5w9t7pkuptfkgljc7rskns9ymhs4ac5pr9nhxa5r5hnj739wve69pcq22set56dtwjffn4sdw9l5cs42flvh76n7h8hkagzp4gmyvgse2mj5dyqteunj37edv5pgaxsmnxsp839dxewka0r74jxyfmqz2vjelmp8r3rskh47mduv4l6q8xgu0wrshn668yfgkfjzwu0rtxkgsszqqwltr2lg56shks9jxsn7mgss3lyuxxkh3t760m7wg0egu7u0a5ueeua9yrrs8sld4erm0uzc9he0q24wy58z36gzpuh9egyps6eftm9dzj7a8609p5n0w46sslhjcukhf79lwxvqc05j3f0mja6lafsp7qe560wf2jnq0jz7srv4ksgfp4c2kh3ra54l374pltmehsy2sg5u3w4ryejlm7jxhymztrslfc05kgpjvcyjx08vft64mycq6ky8y4uvaar6tdk99xe5jtj2vw58lzkte07nmxgvqty43089ejl5p4j7kqspu03n2pw3xek7ld5j3yayjwwfdgplmk55s9lueupe0jrluucfyq26egw93ync2u3f5tc90penvnns9q3h3ewplsg90y8lddxkj3z5e7tkmj53940wtu7dxt3ncf2qsfhalywytes7w47wtrn0kdfcukqcqt8lrw3tm28qp9kztknwpucaf9n0xflztupk37r6klt9hjadds8rhe0kxecq20au5xr6upzd3z5aqqpltaapqk8s2u2g0kg32hcqt70e7m8em367wscmjyz2nzz9tg08cjgv4tc8clz4umwks4d6gddgfuq34tag6l6vsjvznrcq830qy3e0vcxhz7usxc0yplqan5n36zwphwqhpmckcucqlz4s0z4y72v9zdgqhxqp2x5z02zs727l6w8hdszmyfncs5n84lgwg9n925zk8u8um6a3xwqzqqqqqqqqwpw02s",
+          "certificate1qyqsqqqqqqqqqq9lc6uj8k89ng9ucvk0pu5y3uvtuy828uaks624svfgnunedxmr5r4ks9xm3elj6dlnecvu9gvz9vqqqft5knz"
+        ]
+      ],
+      [
+        "share_record",
+        [
+          "verifier1qysqqqqqqqqqqqylncpqqqqqqqq838czqqqqqqqqdl9q2qqqqqqqqvk2qsqqqqqqqqwhjpqqqqqqqqqvqqqqqqqqqqqr8tad3mcmzwvw32leyg5kgjt46uh2k0awz2k8n85pr38q2jzp9hh2u7t0hh6h9qstus375ehtxnypyx8fkq8rcwk8f7jhtg3ha7n8tzq39aplyd40yng09w09je5t9q6074nsaf8z57ltvvc6v7y8049qz03yn0un64vxyh2t0kud263z7dkfk6lhk3ndp2gwjsty25z0e7ltl7sr33y9j6lwze3yq9gkp2cqsqseyrjfmm2kw8sjc6r8ac8edfmhsulhzy35jk9r6pyc69jhxptphc0pmkz4w35zvw5aadmgmyu75qxrp8f8aldf2cfhmvj99qpk4l7vgpvcwk3a7jml00k5hqpntayrml4lc633zmg9afewmj6kdjdrwjqjzwmks7hl63pn6258rapvlq3h3rxj0c5hw0w25wuc8q6he6hllsfv8ywsl9msdwcsqxjdgsrlpfvpcfyu80rg269l7tvgcfznmx0eum4pwdsjxe2szks2zwnc8utlz76rctkmsnv9z9nug0sex2hz8qeqq68lznl7rpweztnx5pz6w5e88978g9r8rf78cp5pdzr9yqp5xz0ephksuy0jj05gh50kjl3938e3sycy4lznmhadv6u6vj54mze4j92mrfvlvfaux6qg6wj9ypttfnht0a92zlsfcvwgxs96xecdrw6frqpw9tfp8jqh4w4z6zen89m7s4tdcme3hjudclk8gzgnzdp6a69zekqy9vw7kh6m8f5gxurgvllwqkq996jhh5lzpjc5ts43g5e5usg5ffvcznvjrldug58kyxsujev93ua6uz0xsrrktgpr498tj3jlwdspwuqvtjtjtgwx0udlxwvuegu07js2vam663f34yq65y7mjvlyeckfa7sh6pe5j80xwkevdlj8umfgqaa3pnumf2lymz4gm93z49f3z0hnnw3cdn4vgnynvd7gn4lw7jla2cvsxqqqqqqqq568sgn",
+          "certificate1qyqsqqqqqqqqqqyvrc3j4tslwe0q4ycqp2eamyg3xevn9nfjuf6eszr8kheunvs8trjgpkfed9gsprg5fgg9mapgrkqqqzh0224"
+        ]
+      ],
+      [
+        "revoke_access",
+        [
+          "verifier1qygqqqqqqqqqqqpxxyqqqqqqqqqpkvgqqqqqqqqqr3eqqqqqqqqqpvymqqqqqqqqqpd5yqqqqqqqqqqvqqqqqqqqqqqz5myxkqe3zxq2xw6eqj7jlcj8h7qhgh8ykd6yyj5aaxcyw7rjy6g8ta557uvq3gpkpc4ja8ydzxgp7z8f2j8wgh4qheqk04w40zn35nznmckdpfhrvuvg6jkflvpd0v75qhwyungvyc7tqcdr3t09a45sr054drg3g66m88l6e75zze73ncsz6v5z5mfn6f7xzh64glcn9kf3a3g48meyv567s9w5svkv2whhqzg5ykz8w7cy8cdpeejqtnn43l7z4r0kvzp7xrh8p6es6n6m64wxpp2q89mnt2fswdkvq0nvzxkhwq8x48tdjp5wjpysvvyrn03ppxu0wfuqzlyl9e0yfveyqgg93plrlnpz5wg65zvkpef6g629zl8y52qrhz5qmggk9ljf87y72qvahwdhepts0slzpvs8sjuuug9c090cg56x6z2ucp2pss40ed9pcxmg58qq2nefhlqwlghrp2xphm2e02f8kt6vktrmmk7wclxpau30cg4d2lvnk2mewwl5zxxyrhd3znzex87cpkyka0x9rs8u7nsva3hss0p5dxctx9mrz3m6lynd7n2jjqy5hsyr978xpjvyez6aqkf99h2pcyxkqq3n7tlvu9auhg2s2xdp2fjnce7n4mfp2j24spmfgwlx9nu9jjzj0jphfwjv6wkkrz44hcu7ze7zuqxkqclkhjh82w2kn8fwek087denlh99fwzpn56njjtx6xrafjp53ezq8uq3k3wd2nz2mv04fts252qn5vt8qc0q3rvg8j9k8j58nkrrk7exjss3wwjnxjntdzflc7l824dhz88gd05v2depwxppnsr2kpupljzy2rfgg3ztvedx4x5h2uhyr00n0guljhzyzmwuaw3p6nt8560sj9z389mg6kegy63p79v667vsz9h8r2pyv953qnzyhte7v5z0sqhmq6g2t9a8sz6n4pe5a097wv7hq9zqqqqqqqqqqjhmu0c",
+          "certificate1qyqsqqqqqqqqqqrwkxdhd367f8uqmpt2cvt7atl7eejfncr2dmg0xx8254s0qhevd6rma3jtfg2tc0vm9af0rdckeyqqqy7fv30"
+        ]
+      ]
+    ],
+    "program_checksum": [
+      "155u8",
+      "26u8",
+      "51u8",
+      "191u8",
+      "11u8",
+      "194u8",
+      "21u8",
+      "222u8",
+      "3u8",
+      "23u8",
+      "41u8",
+      "47u8",
+      "94u8",
+      "179u8",
+      "15u8",
+      "254u8",
+      "147u8",
+      "5u8",
+      "9u8",
+      "147u8",
+      "147u8",
+      "36u8",
+      "144u8",
+      "20u8",
+      "255u8",
+      "225u8",
+      "89u8",
+      "118u8",
+      "48u8",
+      "63u8",
+      "104u8",
+      "31u8"
+    ],
+    "program_owner": "aleo1gl4a57rcxyjvmzcgjscjqe466ecdr7uk4gdp7sf5pctu6tjvv5qs60lw8y"
+  },
+  "fee": {
+    "transition": {
+      "id": "au1s3hx9x53z9y8qqauyrslr2m8jhkltuaf88zmupjwx00j3nx7psgq7kex09",
+      "program": "credits.aleo",
+      "function": "fee_public",
+      "inputs": [
+        {
+          "type": "public",
+          "id": "4446565028684085182105695461718436823995239640606637396951646043995524301302field",
+          "value": "6620094u64"
+        },
+        {
+          "type": "public",
+          "id": "3368073142037237594235736705356245681567571248215885531406134084114922059315field",
+          "value": "0u64"
+        },
+        {
+          "type": "public",
+          "id": "2074278881800780748675656315985540886004327250072392493840156266935772787859field",
+          "value": "122751778026605931493187967976696530652390247010468464665221944511410045236field"
+        }
+      ],
+      "outputs": [
+        {
+          "type": "future",
+          "id": "2407413162113899677199131844250081575745334818292701170597983802191338721936field",
+          "value": "{\n  program_id: credits.aleo,\n  function_name: fee_public,\n  arguments: [\n    aleo1gl4a57rcxyjvmzcgjscjqe466ecdr7uk4gdp7sf5pctu6tjvv5qs60lw8y,\n    6620094u64\n  ]\n}"
+        }
+      ],
+      "tpk": "6199659137663381613528253607157282940753647608404882027272976087802673261817group",
+      "tcm": "6355417387218794394515952981984077292607931170921216212454480778773476051795field",
+      "scm": "8235146691623839266356994375921552803951083750304218275992621243188631979521field"
+    },
+    "global_state_root": "sr1d3wg39kapj4eyqw4rhqwqx06ssv2zyey48jgeq5j5gyek80h35pquggg2v",
+    "proof": "proof1qyqsqqqqqqqqqqqpqqqqqqqqqqqxsvr4mv99j434kls4e4ss544r20n87tehpz66fsx6crqsn6k7hlq8vxyut674q2af8d9er2s9wh5qqy37kwfadde2pjdh8flm5y40h7vv78sz5wpx6l2szcwv2mpvf8z7eh486q9wtcglywymvq404r732q9jd7jau2w0dq3pwmweqrdva8y9matf9uks7hgkv9tcufuqqg67n8wryfx9dj73rr0wsdv8r93g35q8jlqx5j42w4w2tjppwvrsdj8a92l825z3fz5lwz267fsaup33svxslnr3sjzjuh676suag2xud2vqqvxf7522e3n5ffmadrc38mn80a3rh5t5dzsm02y0swa27ztgc4643xp3y47laykztkns2f9pdvlqq8mtkm0jyrd83qq9w87hw869fg8g84uay88pasmjedpmn5ddcshct8f4rmy3fl5v0gsne49thf03qqplmfm8uk9cq3vs74crleamsttfmlnkw49cezfghz85w936y4zhyapp7s2qz3q9khpk0ke5ft9fhq26jzya0gmwwej8404zg588mr9f84fw2zz2sx9c0l5ha9ert63f8299w42a0ltgctrmdclftml22sqg35xxaev2f62cjt6s5kq3umlz575jzfzdw77pj63ma6tkeua09cnhm8ktjpt6e7dz5cnwldxpwccp45wts7krlw06h69j7xglw6afrj3l5lsnjgdz9lmhw7u9hfsr0qyscmp4y5kx7usg3taqky4m44ftwhr4atpngwhqyu2z8z7fpc3hwphmaxyew2s3dnp2gj230ghyvxxf8w7azm7vzc9kvewjuj8qevw2p22yh8cmqzmnsra7rkmska6dx2cmf3quktgujx2hpsnmlkhx2wqpzsuxmwur4ydtwh8q698kt34dux60cafvzz6597rdu8smhhcrvsgdrwd96z6kzjq4qqdxptl78tl2ekw996tkx953dkzln67r6hq7jy9mfxtd5ad43gjf8vn6lnx5mz2ev489fzjw6yygzkvxufyevf4jjrgecu67tgjjkpzalls6esz2wj2lwyg08pfmnqzgd6q3xv434vpeqzw6pn7lx9t4jkq3yx585e5krs7a6ujvfn5m2ncm9vfy8477fp7q0qnvxg7qthgnqtuh6zfz46f5wgm3tqg45yn0p8ufg4e483r5g9spqvqqqqqqqqqqqjwzhc07p239g3nadhvs5fr767guzpkv63g7xgdld5vj8usa4qqr3rjfpquvzdr2z42daf5t5du0qyq84fy40nuwky880x0swlvtdxmzfu22n9c85dmagewe9xv9wljxkv3s6h4ghyth7qwceajkeqqnglspqy344a6vwp4k3jshvku28h3g8cesjusm5ne28n39zv8yp355clx3qex3e3wj0jsqkalacvc256g69gaqfcxzxha9lznw7z597fr6qfwe9ugf0m8uuym0xgl0cfxf9xpgqyqq5c7rqr"
+  }
+}

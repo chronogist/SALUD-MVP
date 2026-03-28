@@ -1,0 +1,251 @@
+/* ============================================================================
+   LANDING PAGE - Role Selection
+   All classes prefixed with "lp-"
+   ============================================================================ */
+
+.lp-wrapper {
+  min-height: 100vh;
+  background: #F5F5FA;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  padding: 40px 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle background decoration */
+.lp-bg-glow {
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.15;
+  pointer-events: none;
+}
+
+.lp-bg-glow-blue {
+  top: -200px;
+  right: -100px;
+  background: #3B71FE;
+}
+
+.lp-bg-glow-purple {
+  bottom: -200px;
+  left: -100px;
+  background: #7B4BFF;
+}
+
+/* --- Branding --- */
+.lp-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 48px;
+  z-index: 1;
+}
+
+.lp-brand svg {
+  width: 36px;
+  height: 36px;
+}
+
+.lp-brand span {
+  font-size: 24px;
+  font-weight: 700;
+  color: #111112;
+  letter-spacing: -0.03em;
+}
+
+/* --- Heading --- */
+.lp-heading {
+  text-align: center;
+  margin-bottom: 48px;
+  z-index: 1;
+}
+
+.lp-heading h1 {
+  font-size: 40px;
+  font-weight: 700;
+  color: #111112;
+  letter-spacing: -0.04em;
+  margin: 0 0 12px;
+  line-height: 1.2;
+}
+
+.lp-heading p {
+  font-size: 17px;
+  color: #8E8E9E;
+  margin: 0;
+  line-height: 1.6;
+  max-width: 420px;
+}
+
+/* --- Role Cards --- */
+.lp-cards {
+  display: flex;
+  gap: 24px;
+  z-index: 1;
+  margin-bottom: 48px;
+}
+
+.lp-card {
+  background: #FFFFFF;
+  border-radius: 28px;
+  padding: 40px 36px;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 20px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  text-decoration: none;
+}
+
+.lp-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.1);
+}
+
+.lp-card:active {
+  transform: translateY(-2px);
+}
+
+.lp-card-patient:hover {
+  border-color: #3B71FE;
+  box-shadow: 0 16px 48px rgba(59, 113, 254, 0.15);
+}
+
+.lp-card-doctor:hover {
+  border-color: #00B976;
+  box-shadow: 0 16px 48px rgba(0, 185, 118, 0.15);
+}
+
+/* Card icon */
+.lp-card-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lp-card-patient .lp-card-icon {
+  background: #EBF0FF;
+  color: #3B71FE;
+}
+
+.lp-card-doctor .lp-card-icon {
+  background: #E0F5EB;
+  color: #00B976;
+}
+
+/* Card text */
+.lp-card h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #111112;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.lp-card p {
+  font-size: 14px;
+  color: #8E8E9E;
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* Card arrow */
+.lp-card-arrow {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: #F5F5FA;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #B8B8C8;
+  transition: all 0.3s ease;
+  margin-top: 4px;
+}
+
+.lp-card:hover .lp-card-arrow {
+  transform: translateX(4px);
+}
+
+.lp-card-patient:hover .lp-card-arrow {
+  background: #EBF0FF;
+  color: #3B71FE;
+}
+
+.lp-card-doctor:hover .lp-card-arrow {
+  background: #E0F5EB;
+  color: #00B976;
+}
+
+/* --- Footer --- */
+.lp-footer {
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.lp-footer-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  background: #FFFFFF;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  font-size: 13px;
+  font-weight: 500;
+  color: #8E8E9E;
+}
+
+.lp-footer-badge svg {
+  color: #00B976;
+}
+
+.lp-footer-text {
+  font-size: 12px;
+  color: #B8B8C8;
+  margin: 0;
+}
+
+/* --- Responsive --- */
+@media (max-width: 680px) {
+  .lp-cards {
+    flex-direction: column;
+    width: 100%;
+    max-width: 340px;
+  }
+
+  .lp-card {
+    width: 100%;
+  }
+
+  .lp-heading h1 {
+    font-size: 28px;
+  }
+
+  .lp-heading p {
+    font-size: 15px;
+  }
+
+  .lp-brand {
+    margin-bottom: 36px;
+  }
+}

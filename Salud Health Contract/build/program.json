@@ -1,9 +1,9 @@
 {
-  "program": "salud_health_records_v6.aleo",
+  "program": "salud_records.aleo",
   "version": "0.1.0",
   "description": "",
   "license": "",
-  "leo": "3.4.0",
+  "leo": "3.5.0",
   "dependencies": null,
   "dev_dependencies": null
 }

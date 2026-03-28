@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { MedicalRecord, AccessGrant, User, RecordType } from '@/types/records';
+import type { MedicalRecord, AccessGrant, User, RecordType, UserRole } from '@/types/records';
 
 // Generate unique IDs
 const generateId = () => Math.random().toString(36).substring(2, 15);
@@ -95,10 +95,28 @@ export const useRecordsStore = create<RecordsState>()(
 
       syncRecords: (onchainRecords: MedicalRecord[]) => {
         set((state) => {
-          const existingIds = new Set(state.records.map(r => r.recordId));
-          const newRecords = onchainRecords.filter(r => !existingIds.has(r.recordId));
+          const onchainMap = new Map(onchainRecords.map(r => [r.recordId, r]));
+
+          // Update existing records with plaintext/ciphertext if missing
+          const updatedRecords = state.records.map((existing) => {
+            const onchain = onchainMap.get(existing.recordId);
+            if (onchain) {
+              onchainMap.delete(existing.recordId);
+              return {
+                ...existing,
+                recordPlaintext: existing.recordPlaintext || onchain.recordPlaintext,
+                recordCiphertext: existing.recordCiphertext || onchain.recordCiphertext,
+                data: existing.data === '' || !existing.data ? onchain.data : existing.data,
+              };
+            }
+            return existing;
+          });
+
+          // Add any truly new records
+          const newRecords = Array.from(onchainMap.values());
+
           return {
-            records: [...newRecords, ...state.records],
+            records: [...newRecords, ...updatedRecords],
             lastSyncAt: new Date(),
           };
         });
@@ -187,6 +205,7 @@ interface UserState {
   disconnect: () => void;
   setBalance: (balance: number) => void;
   setName: (name: string) => void;
+  setRole: (role: UserRole) => void;
 }
 
 export const useUserStore = create<UserState>()(
@@ -196,15 +215,16 @@ export const useUserStore = create<UserState>()(
       isConnecting: false,
 
       connect: (address, viewKey, name) => {
-        set({
+        set((state) => ({
           user: {
             address,
             name,
             viewKey,
             isConnected: true,
+            role: state.user?.role || 'patient',
           },
           isConnecting: false,
-        });
+        }));
       },
 
       disconnect: () => {
@@ -220,6 +240,12 @@ export const useUserStore = create<UserState>()(
       setName: (name) => {
         set((state) => ({
           user: state.user ? { ...state.user, name } : null,
+        }));
+      },
+
+      setRole: (role) => {
+        set((state) => ({
+          user: state.user ? { ...state.user, role } : null,
         }));
       },
       hardReset: () => {

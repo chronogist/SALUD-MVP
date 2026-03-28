@@ -100,6 +100,8 @@ export interface MedicalRecord {
   updatedAt: Date;
   isEncrypted: boolean;
   ownerAddress: string; // Wallet address that created this record
+  recordPlaintext?: string; // Raw Aleo record plaintext (needed for share_record input)
+  recordCiphertext?: string; // Raw Aleo record ciphertext
 }
 
 /**
@@ -119,27 +121,34 @@ export interface AccessGrant {
 }
 
 /**
- * QR code data structure for sharing
+ * QR code data structure for sharing (v2 — no medical data, just references)
+ *
+ * The actual medical data is transferred on-chain via Aleo's native record
+ * ownership model. The QR code only contains enough info for the doctor
+ * to locate and verify their shared record.
  */
 export interface QRCodeData {
-  version: number;
-  accessToken: string;
-  recordId: string;
-  patientAddress: string;
-  expiresAt: number; // Unix timestamp
-  encryptedViewKey?: string; // Encrypted with doctor's public key
-  encryptedData?: string; // The encrypted record data parts
+  version: 2;
+  transactionId: string; // The share_record transaction ID
+  accessToken: string; // On-chain access token (field) for verification
+  recordId: string; // Which record was shared
+  patientAddress: string; // Who shared it
+  expiresAt: number; // Client-calculated expiration (Unix ms)
+  recordType: RecordType; // Record category for display
 }
 
 /**
  * User/Wallet interface
  */
+export type UserRole = 'patient' | 'doctor';
+
 export interface User {
   address: string;
   name?: string;
   viewKey?: string;
   isConnected: boolean;
   balance?: number;
+  role: UserRole;
 }
 
 export function getRecordDisplayData(record: MedicalRecord): { title: string; description: string } {

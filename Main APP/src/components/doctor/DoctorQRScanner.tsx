@@ -20,7 +20,8 @@ import { Badge } from '@/components/ui/badge';
 import { formatDateTime, truncateAddress } from '@/lib/utils';
 import { RECORD_TYPES, type QRCodeData, type RecordType } from '@/types/records';
 import { useUserStore } from '@/store';
-import { decryptWithPrivateKey } from '@/lib/crypto-utils';
+import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
+import { PROGRAM_ID, parseSharedRecordPlaintext, fieldElementsToString } from '@/lib/aleo-utils';
 
 type ScanStatus = 'idle' | 'scanning' | 'verifying' | 'success' | 'error';
 
@@ -30,6 +31,7 @@ interface ScannedRecord {
   recordType: RecordType;
   patientAddress: string;
   expiresAt: Date;
+  accessToken: string;
 }
 
 export function DoctorQRScanner() {
@@ -38,11 +40,12 @@ export function DoctorQRScanner() {
   const [recordData, setRecordData] = useState<ScannedRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cameraPermission, setCameraPermission] = useState<boolean | null>(null);
-  
+
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const user = useUserStore((state) => state.user);
+  const { requestRecords, decrypt, connected } = useWallet();
 
   useEffect(() => {
     return () => {
@@ -96,48 +99,122 @@ export function DoctorQRScanner() {
 
     try {
       const data: QRCodeData = JSON.parse(decodedText);
-      
-      if (!data.accessToken || !data.recordId || !data.patientAddress) {
-        throw new Error('Invalid QR code format');
+
+      // Validate QR code format
+      if (!data.transactionId || !data.recordId || !data.patientAddress) {
+        throw new Error('Invalid QR code format. This may be an older QR code version.');
+      }
+
+      if (data.version !== 2) {
+        throw new Error('Unsupported QR code version. Please ask the patient to generate a new code.');
       }
 
       if (data.expiresAt < Date.now()) {
-        throw new Error('This access token has expired');
+        throw new Error('This access has expired. Please ask the patient for a new share.');
       }
 
       setScannedData(data);
 
-      if (!user) {
-        throw new Error('Please connect your wallet to verify access');
+      if (!user || !connected) {
+        throw new Error('Please connect your wallet to access shared records.');
       }
 
-      // Decrypt the view key if available
-      let decryptedContent = 'Access has been verified on the Aleo blockchain.';
-      
-      if (data.encryptedViewKey && data.encryptedData) {
-        // In production, use user's private key to decrypt
-        const viewKey = decryptWithPrivateKey(data.encryptedViewKey, user.address);
-        
-        if (viewKey) {
-          // Parse the encrypted data
-          try {
-            const recordData = JSON.parse(atob(data.encryptedData));
-            decryptedContent = `${recordData.title || 'Medical Record'}\n\n${recordData.description || 'No description available'}`;
-          } catch {
-            decryptedContent = 'Successfully decrypted record. Data format: encrypted field elements.';
+      // Fetch SharedMedicalRecord from the blockchain via the wallet
+      // The share_record transition created a SharedMedicalRecord owned by this doctor
+      let foundRecord = false;
+
+      if (requestRecords) {
+        try {
+          const records = await requestRecords(PROGRAM_ID, true) as Array<{
+            recordPlaintext?: string;
+            recordCiphertext?: string;
+            spent?: boolean;
+          }>;
+
+          if (Array.isArray(records)) {
+            for (const record of records) {
+              if (record.spent) continue;
+
+              let plaintext: string | undefined;
+
+              if (record.recordPlaintext) {
+                plaintext = record.recordPlaintext;
+              } else if (record.recordCiphertext && decrypt) {
+                try {
+                  plaintext = await decrypt(record.recordCiphertext);
+                } catch {
+                  continue;
+                }
+              }
+
+              if (!plaintext) continue;
+
+              // Check if this is a SharedMedicalRecord matching the QR code
+              const isSharedRecord = plaintext.includes('original_owner') && plaintext.includes('access_token');
+              if (!isSharedRecord) continue;
+
+              const parsed = parseSharedRecordPlaintext(plaintext);
+              if (!parsed) continue;
+
+              // Match by record_id from the QR code
+              if (parsed.recordId === data.recordId || parsed.recordId === data.recordId.replace(/field$/, '')) {
+                // Parse the medical data from field elements
+                let title = 'Shared Medical Record';
+                let description = '';
+
+                try {
+                  const jsonData = JSON.parse(parsed.data);
+                  title = jsonData.title || jsonData.t || title;
+                  description = jsonData.description || jsonData.d || description;
+                } catch {
+                  if (parsed.data && parsed.data !== '0') {
+                    title = parsed.data.slice(0, 60);
+                  }
+                }
+
+                const recordType = (parsed.recordType >= 1 && parsed.recordType <= 10
+                  ? parsed.recordType
+                  : data.recordType || 1) as RecordType;
+
+                setRecordData({
+                  title,
+                  description: description || 'Record data decrypted successfully.',
+                  recordType,
+                  patientAddress: parsed.originalOwner || data.patientAddress,
+                  expiresAt: new Date(data.expiresAt),
+                  accessToken: parsed.accessToken || data.accessToken,
+                });
+
+                foundRecord = true;
+                break;
+              }
+            }
           }
+        } catch (err) {
+          console.error('Error fetching records from wallet:', err);
         }
       }
 
-      const mockRecord: ScannedRecord = {
-        title: 'Medical Record',
-        description: decryptedContent,
-        recordType: 1,
-        patientAddress: data.patientAddress,
-        expiresAt: new Date(data.expiresAt),
-      };
+      if (!foundRecord) {
+        // The record may not have been synced yet, or the transaction is still pending.
+        // Show basic info from the QR code with a note.
+        const recordType = (data.recordType >= 1 && data.recordType <= 10
+          ? data.recordType
+          : 1) as RecordType;
 
-      setRecordData(mockRecord);
+        setRecordData({
+          title: `${RECORD_TYPES[recordType].name} Record`,
+          description:
+            'The shared record was not found in your wallet yet. ' +
+            'This may happen if the transaction is still being confirmed. ' +
+            'Please try again in a few minutes.',
+          recordType,
+          patientAddress: data.patientAddress,
+          expiresAt: new Date(data.expiresAt),
+          accessToken: data.accessToken,
+        });
+      }
+
       setScanStatus('success');
     } catch (err) {
       console.error('Scan processing error:', err);
@@ -182,7 +259,7 @@ export function DoctorQRScanner() {
                 <div className="flex h-32 w-32 items-center justify-center rounded-full bg-slate-100">
                   <Camera size={48} className="text-slate-400" />
                 </div>
-                
+
                 {cameraPermission === false && (
                   <div className="flex items-center gap-2 rounded-lg bg-danger-50 px-4 py-3 text-sm text-danger-700">
                     <CameraOff size={16} />
@@ -193,7 +270,7 @@ export function DoctorQRScanner() {
                 {!user && (
                   <div className="flex items-center gap-2 rounded-lg bg-warning-50 px-4 py-3 text-sm text-warning-700">
                     <AlertTriangle size={16} />
-                    Connect your wallet to verify access
+                    Connect your wallet to verify and decrypt records
                   </div>
                 )}
 
@@ -250,11 +327,11 @@ export function DoctorQRScanner() {
                     <Loader2 size={20} className="animate-spin text-primary-600" />
                   </div>
                 </div>
-                
+
                 <div className="text-center">
-                  <p className="font-medium text-slate-900">Verifying Access</p>
+                  <p className="font-medium text-slate-900">Verifying & Decrypting</p>
                   <p className="text-sm text-slate-500">
-                    Checking blockchain for valid access grant...
+                    Looking for shared record in your wallet...
                   </p>
                 </div>
               </motion.div>
@@ -271,7 +348,7 @@ export function DoctorQRScanner() {
                 <div className="flex items-center justify-center gap-2 rounded-lg bg-success-50 p-4">
                   <CheckCircle2 className="text-success-600" />
                   <span className="font-medium text-success-900">
-                    Access Verified Successfully
+                    Record Accessed Successfully
                   </span>
                 </div>
 
@@ -317,10 +394,10 @@ export function DoctorQRScanner() {
                       <div className="flex items-center justify-between text-sm">
                         <span className="flex items-center gap-2 text-slate-500">
                           <Shield size={14} />
-                          Access Token
+                          Transaction
                         </span>
                         <span className="font-mono text-xs text-slate-700">
-                          {truncateAddress(scannedData.accessToken, 8, 6)}
+                          {truncateAddress(scannedData.transactionId, 8, 6)}
                         </span>
                       </div>
                     )}
@@ -331,11 +408,11 @@ export function DoctorQRScanner() {
                   <Shield className="mt-0.5 h-5 w-5 text-slate-400" />
                   <div>
                     <p className="text-sm font-medium text-slate-700">
-                      Privacy Protected
+                      Decrypted by Aleo
                     </p>
                     <p className="text-xs text-slate-500">
-                      This record was securely shared via the Aleo blockchain.
-                      Access will automatically expire at the specified time.
+                      This record was encrypted to your wallet address by the Aleo network.
+                      Only you can decrypt it with your view key.
                     </p>
                   </div>
                 </div>
@@ -358,7 +435,7 @@ export function DoctorQRScanner() {
                 <div className="flex h-24 w-24 items-center justify-center rounded-full bg-danger-100">
                   <XCircle size={40} className="text-danger-600" />
                 </div>
-                
+
                 <div className="text-center">
                   <p className="font-medium text-slate-900">Verification Failed</p>
                   <p className="mt-1 text-sm text-slate-500">{error}</p>
@@ -382,23 +459,23 @@ export function DoctorQRScanner() {
           {[
             {
               step: 1,
-              title: 'Patient shares QR code',
-              description: 'The patient generates a temporary access QR code for their record',
+              title: 'Patient shares on blockchain',
+              description: 'The patient creates an on-chain transaction that produces an encrypted copy of their record for you',
             },
             {
               step: 2,
               title: 'Scan the QR code',
-              description: 'Use your camera to scan the QR code shown by the patient',
+              description: 'The QR code contains the transaction reference — no medical data is in the QR code itself',
             },
             {
               step: 3,
-              title: 'Access verified on blockchain',
-              description: 'The Aleo blockchain verifies you have valid, non-expired access',
+              title: 'Your wallet decrypts the record',
+              description: 'The Aleo network encrypted the record to your address. Only your wallet can decrypt it.',
             },
             {
               step: 4,
-              title: 'View decrypted record',
-              description: 'The medical record is decrypted and displayed securely',
+              title: 'View the medical record',
+              description: 'The decrypted record is displayed securely. Access expires automatically.',
             },
           ].map((item) => (
             <div key={item.step} className="flex gap-4">

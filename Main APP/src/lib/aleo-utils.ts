@@ -1,17 +1,19 @@
 /**
  * Aleo Utility Functions
- * 
+ *
  * Helper functions to encode/decode data for Aleo blockchain transactions
  */
 
 import type { RecordType } from '@/types/records';
+
+export const PROGRAM_ID = 'salud_records.aleo';
 
 const NUM_FIELD_PARTS = 8;
 const BYTES_PER_FIELD = 30;
 
 /**
  * Convert a string to bytes and then to field elements
- * Using 8 fields to get ~240 bytes capacity
+ * Using 12 fields to get ~360 bytes capacity
  */
 export function stringToFieldElements(data: string): string[] {
   const encoder = new TextEncoder();
@@ -169,21 +171,19 @@ export function prepareCreateRecordInputs(
   makeDiscoverable: boolean = true
 ): CreateRecordInputs {
   const dataStr = createRecordData(title, description);
-  
-  const [part1, part2, part3, part4, part5, part6, part7, part8] = stringToFieldElements(dataStr);
-  
+  const parts = stringToFieldElements(dataStr);
   const dataHash = hashData(dataStr);
   const nonce = generateNonce();
-  
+
   return {
-    data_part1: part1,
-    data_part2: part2,
-    data_part3: part3,
-    data_part4: part4,
-    data_part5: part5,
-    data_part6: part6,
-    data_part7: part7,
-    data_part8: part8,
+    data_part1: parts[0],
+    data_part2: parts[1],
+    data_part3: parts[2],
+    data_part4: parts[3],
+    data_part5: parts[4],
+    data_part6: parts[5],
+    data_part7: parts[6],
+    data_part8: parts[7],
     record_type: formatRecordType(recordType),
     data_hash: dataHash,
     nonce: nonce,
@@ -193,6 +193,7 @@ export function prepareCreateRecordInputs(
 
 /**
  * Convert inputs to array format for executeTransaction
+ * Must match create_record transition signature: 8 data parts + record_type + data_hash + nonce + make_discoverable
  */
 export function inputsToArray(inputs: CreateRecordInputs): string[] {
   return [
@@ -209,4 +210,86 @@ export function inputsToArray(inputs: CreateRecordInputs): string[] {
     inputs.nonce,
     inputs.make_discoverable,
   ];
+}
+
+/**
+ * Prepare inputs for share_record transaction.
+ *
+ * share_record takes: (MedicalRecord, address, u32, field)
+ * The MedicalRecord is passed as the raw record plaintext string.
+ */
+export function prepareShareRecordInputs(
+  recordPlaintext: string,
+  doctorAddress: string,
+  durationBlocks: number
+): string[] {
+  const nonce = generateNonce();
+  return [
+    recordPlaintext,
+    doctorAddress,
+    `${durationBlocks}u32`,
+    nonce,
+  ];
+}
+
+/**
+ * Prepare inputs for revoke_access transaction.
+ * revoke_access takes: (field)
+ */
+export function prepareRevokeAccessInputs(accessToken: string): string[] {
+  return [accessToken.endsWith('field') ? accessToken : `${accessToken}field`];
+}
+
+/**
+ * Parse a SharedMedicalRecord plaintext from the wallet.
+ * Similar to parseRecordPlaintext in useSyncRecords but for shared records.
+ */
+export function parseSharedRecordPlaintext(plaintextStr: string): {
+  recordId: string;
+  originalOwner: string;
+  dataHash: string;
+  data: string;
+  recordType: number;
+  durationBlocks: number;
+  accessToken: string;
+} | null {
+  try {
+    const extractValue = (key: string): string => {
+      const regex = new RegExp(`${key}:\\s*([^,\\n}]+)`);
+      const match = plaintextStr.match(regex);
+      return match ? match[1].trim() : '';
+    };
+
+    const clean = (val: string) =>
+      val
+        .replace(/\.private$/, '')
+        .replace(/\.public$/, '')
+        .replace(/u64$/, '')
+        .replace(/u32$/, '')
+        .replace(/u16$/, '')
+        .replace(/u8$/, '')
+        .replace(/field$/, '')
+        .replace(/group$/, '')
+        .replace(/scalar$/, '');
+
+    const recordId = clean(extractValue('record_id'));
+    const originalOwner = extractValue('original_owner').replace(/\.private$/, '').replace(/\.public$/, '');
+    const dataHash = clean(extractValue('data_hash'));
+    const recordType = parseInt(clean(extractValue('record_type')) || '10', 10);
+    const durationBlocks = parseInt(clean(extractValue('duration_blocks')) || '0', 10);
+    const accessToken = clean(extractValue('access_token'));
+
+    const dataParts: string[] = [];
+    for (let i = 1; i <= 8; i++) {
+      const val = clean(extractValue(`data_part${i}`));
+      dataParts.push(`${val || '0'}field`);
+    }
+
+    const data = fieldElementsToString(dataParts);
+
+    return { recordId, originalOwner, dataHash, data, recordType, durationBlocks, accessToken };
+  } catch (error) {
+    console.error('Error parsing shared record:', error);
+    return null;
+  }
 }

@@ -1,27 +1,9 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import {
-  FileText,
-  Calendar,
-  Clock,
-  Shield,
-  User,
-  Share2,
-  Trash2,
-  X,
-} from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { formatDateTime, truncateAddress } from '@/lib/utils';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { RECORD_TYPES, type MedicalRecord, getRecordDisplayData } from '@/types/records';
 import { ShareRecordModal } from './ShareRecordModal';
 import { useRecordsStore } from '@/store';
+import './RecordDetailModal.css';
 
 interface RecordDetailModalProps {
   open: boolean;
@@ -29,19 +11,146 @@ interface RecordDetailModalProps {
   record: MedicalRecord | null;
 }
 
+// --- Icons ---
+
+function CloseIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+
+function ShareUpIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+      <polyline points="16 6 12 2 8 6" />
+      <line x1="12" y1="2" x2="12" y2="15" />
+    </svg>
+  );
+}
+
+function EditIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  );
+}
+
+function LabIcon() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="16" y1="13" x2="8" y2="13" />
+      <line x1="16" y1="17" x2="8" y2="17" />
+    </svg>
+  );
+}
+
+function ImagingIcon() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+      <circle cx="8.5" cy="8.5" r="1.5" />
+      <polyline points="21 15 16 10 5 21" />
+    </svg>
+  );
+}
+
+function ReportIcon() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+    </svg>
+  );
+}
+
+function VaccineIcon() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+  );
+}
+
+function getTypeThemeClass(recordType: number): string {
+  switch (recordType) {
+    case 2: case 3: case 10: return 'rdm-type-lab';
+    case 4: case 6: case 7: case 9: return 'rdm-type-imaging';
+    case 1: return 'rdm-type-report';
+    case 5: case 8: return 'rdm-type-vaccine';
+    default: return 'rdm-type-lab';
+  }
+}
+
+function getTypeIcon(recordType: number) {
+  switch (recordType) {
+    case 2: case 3: case 10: return <LabIcon />;
+    case 4: case 6: case 7: case 9: return <ImagingIcon />;
+    case 1: return <ReportIcon />;
+    case 5: case 8: return <VaccineIcon />;
+    default: return <LabIcon />;
+  }
+}
+
 export function RecordDetailModal({ open, onOpenChange, record }: RecordDetailModalProps) {
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [recordName, setRecordName] = useState('');
+  const [recordDetails, setRecordDetails] = useState('');
   const deleteRecord = useRecordsStore((state) => state.deleteRecord);
+
+  // Populate form fields when record changes
+  useEffect(() => {
+    if (record) {
+      const { title, description } = getRecordDisplayData(record);
+      setRecordName(title);
+      setRecordDetails(description || record.description || '');
+    }
+  }, [record]);
+
+  // Reset delete confirm when modal closes
+  useEffect(() => {
+    if (!open) setShowDeleteConfirm(false);
+  }, [open]);
+
+  // Close on Escape
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && open) onOpenChange(false);
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [open, onOpenChange]);
+
+  // Lock body scroll when open
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [open]);
 
   if (!record) return null;
 
   const recordType = RECORD_TYPES[record.recordType];
-  const { title, description } = getRecordDisplayData(record);
-  const finalDescription =
-    description || record.description || 'No description provided.';
-
-  const displayedDescription = finalDescription;
+  const { title } = getRecordDisplayData(record);
 
   const handleDelete = () => {
     deleteRecord(record.id);
@@ -49,182 +158,92 @@ export function RecordDetailModal({ open, onOpenChange, record }: RecordDetailMo
     setShowDeleteConfirm(false);
   };
 
-  const handleShare = () => {
-    setShareModalOpen(true);
-  };
-
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <div className="flex items-start justify-between">
-              <DialogTitle className="flex items-center gap-3">
-                <div className={`flex h-12 w-12 items-center justify-center rounded-xl bg-${recordType.color}-100`}>
-                  <FileText className={`text-${recordType.color}-600`} size={24} />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900">{title}</h2>
-                  <Badge variant={recordType.color as any} size="sm" className="mt-1">
-                    {recordType.name}
-                  </Badge>
-                </div>
-              </DialogTitle>
-            </div>
-          </DialogHeader>
+      <AnimatePresence>
+        {open && (
+          <div className="rdm-overlay-wrapper">
+            {/* Backdrop */}
+            <motion.div
+              className="rdm-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => onOpenChange(false)}
+            />
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-6 py-4"
-          >
-            {/* Description */}
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-6">
-              <h3 className="mb-3 text-sm font-semibold text-slate-700">Description</h3>
-              <p className="whitespace-pre-wrap text-sm text-slate-600 leading-relaxed">
-                {displayedDescription}
-              </p>
-            </div>
+            {/* Modal */}
+            <motion.div
+              className="rdm-modal"
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ duration: 0.4, ease: [0.34, 1.56, 0.64, 1] }}
+            >
+              {/* Header */}
+              <div className="rdm-header">
+                <div className="rdm-title-section">
+                  <div className={`rdm-modal-icon ${getTypeThemeClass(record.recordType)}`}>
+                    {getTypeIcon(record.recordType)}
+                  </div>
+                  <div className="rdm-title-group">
+                    <h2>{title}</h2>
+                    <div className="rdm-subtitle">{recordType.name}</div>
+                  </div>
+                </div>
+                <button className="rdm-close" onClick={() => onOpenChange(false)}>
+                  <CloseIcon />
+                </button>
+              </div>
 
-            {/* Metadata Grid */}
-            <div className="grid gap-4 md:grid-cols-2">
-              {/* Created Date */}
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100">
-                    <Calendar className="text-slate-600" size={20} />
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-slate-500">Created</p>
-                    <p className="text-sm font-semibold text-slate-900">
-                      {formatDateTime(record.createdAt)}
-                    </p>
-                  </div>
+              {/* Body */}
+              <div className="rdm-body">
+                <div className="rdm-form-group">
+                  <label className="rdm-form-label">Record Name</label>
+                  <input
+                    type="text"
+                    className="rdm-form-input"
+                    value={recordName}
+                    onChange={(e) => setRecordName(e.target.value)}
+                  />
+                </div>
+                <div className="rdm-form-group">
+                  <label className="rdm-form-label">Medical Record Details</label>
+                  <textarea
+                    className="rdm-form-input rdm-form-textarea"
+                    placeholder="Enter detailed information about this medical record..."
+                    value={recordDetails}
+                    onChange={(e) => setRecordDetails(e.target.value)}
+                  />
                 </div>
               </div>
 
-              {/* Last Updated */}
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100">
-                    <Clock className="text-slate-600" size={20} />
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-slate-500">Last Updated</p>
-                    <p className="text-sm font-semibold text-slate-900">
-                      {formatDateTime(record.updatedAt)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Owner Address */}
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100">
-                    <User className="text-slate-600" size={20} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-slate-500">Owner Address</p>
-                    <p className="text-sm font-mono font-semibold text-slate-900 truncate">
-                      {truncateAddress(record.ownerAddress, 12, 8)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Encryption Status */}
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success-100">
-                    <Shield className="text-success-600" size={20} />
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-slate-500">Encryption</p>
-                    <p className="text-sm font-semibold text-success-900">
-                      {record.isEncrypted ? 'Encrypted' : 'Not Encrypted'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Record ID */}
-            {record.recordId && (
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-aleo-100">
-                    <Shield className="text-aleo-600" size={20} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-slate-500">On-Chain Record ID</p>
-                    <p className="mt-1 break-all text-xs font-mono text-slate-700">
-                      {record.recordId}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Privacy Notice */}
-            <div className="rounded-xl border border-primary-200 bg-primary-50 p-4">
-              <div className="flex items-start gap-3">
-                <Shield className="mt-0.5 h-5 w-5 text-primary-600" />
-                <div>
-                  <p className="text-sm font-medium text-primary-900">
-                    Privacy Protected
-                  </p>
-                  <p className="mt-1 text-xs text-primary-700">
-                    This record is secured using Aleo's zero-knowledge encryption.
-                    Only you and authorized healthcare providers can access this information.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-3">
-              <Button
-                onClick={handleShare}
-                className="flex-1"
-                variant="default"
-              >
-                <Share2 size={16} />
-                Share with Doctor
-              </Button>
-
-              {!showDeleteConfirm ? (
-                <Button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  <Trash2 size={16} />
-                  Delete Record
-                </Button>
-              ) : (
-                <div className="flex flex-1 gap-2">
-                  <Button
-                    onClick={handleDelete}
-                    variant="destructive"
-                    size="sm"
-                    className="flex-1"
-                  >
+              {/* Footer */}
+              <div className="rdm-footer">
+                <button className="rdm-btn rdm-btn-primary" onClick={() => setShareModalOpen(true)}>
+                  <ShareUpIcon />
+                  Share with Doctor
+                </button>
+                <button className="rdm-btn rdm-btn-secondary" onClick={() => {}}>
+                  <EditIcon />
+                  Edit
+                </button>
+                {!showDeleteConfirm ? (
+                  <button className="rdm-btn rdm-btn-danger" onClick={() => setShowDeleteConfirm(true)}>
+                    <TrashIcon />
+                    Delete
+                  </button>
+                ) : (
+                  <button className="rdm-btn rdm-btn-danger rdm-btn-confirm" onClick={handleDelete}>
                     Confirm Delete
-                  </Button>
-                  <Button
-                    onClick={() => setShowDeleteConfirm(false)}
-                    variant="outline"
-                    size="sm"
-                  >
-                    <X size={16} />
-                  </Button>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        </DialogContent>
-      </Dialog>
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <ShareRecordModal
         open={shareModalOpen}
