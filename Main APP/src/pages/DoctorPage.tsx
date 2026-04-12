@@ -22,6 +22,33 @@ interface ScannedRecord {
   accessToken: string;
 }
 
+interface SavedSharedRecord {
+  id: string;
+  title: string;
+  recordType: RecordType;
+  patientAddress: string;
+  expiresAt: string;
+  scannedAt: string;
+  transactionId: string;
+}
+
+const SHARED_RECORDS_KEY = 'salud_doctor_shared_records';
+
+function loadSharedRecords(): SavedSharedRecord[] {
+  try {
+    const stored = localStorage.getItem(SHARED_RECORDS_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch { return []; }
+}
+
+function saveSharedRecord(record: SavedSharedRecord) {
+  const existing = loadSharedRecords();
+  const dupe = existing.find((r) => r.transactionId === record.transactionId);
+  if (dupe) return;
+  const updated = [record, ...existing].slice(0, 50);
+  localStorage.setItem(SHARED_RECORDS_KEY, JSON.stringify(updated));
+}
+
 // --- Inline SVG Icons ---
 
 function CameraIcon({ size = 48 }: { size?: number }) {
@@ -216,6 +243,7 @@ export function DoctorPage() {
   const [regSpecialty, setRegSpecialty] = useState('');
   const [regLoading, setRegLoading] = useState(false);
   const [doctorName, setDoctorName] = useState<string | null>(null);
+  const [sharedRecords, setSharedRecords] = useState<SavedSharedRecord[]>([]);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -225,6 +253,7 @@ export function DoctorPage() {
   const { requestRecords, decrypt, connected, disconnect: disconnectWallet } = useWallet();
 
   useEffect(() => {
+    setSharedRecords(loadSharedRecords());
     return () => { stopScanner(); };
   }, []);
 
@@ -372,6 +401,7 @@ export function DoctorPage() {
       }
 
       let foundRecord = false;
+      let foundTitle = '';
 
       if (requestRecords) {
         try {
@@ -420,6 +450,7 @@ export function DoctorPage() {
                 });
 
                 foundRecord = true;
+                foundTitle = title;
                 break;
               }
             }
@@ -443,6 +474,18 @@ export function DoctorPage() {
         });
         setScanStatus('pending');
       } else {
+        // Persist the successfully scanned record
+        const saved: SavedSharedRecord = {
+          id: `${data.tx}-${Date.now()}`,
+          title: foundTitle || RECORD_TYPES[((data.rt || 1) as RecordType)].name,
+          recordType: (data.rt || 1) as RecordType,
+          patientAddress: data.p,
+          expiresAt: new Date(data.exp).toISOString(),
+          scannedAt: new Date().toISOString(),
+          transactionId: data.tx,
+        };
+        saveSharedRecord(saved);
+        setSharedRecords(loadSharedRecords());
         setScanStatus('success');
       }
     } catch (err) {
@@ -840,6 +883,43 @@ export function DoctorPage() {
             )}
           </AnimatePresence>
         </motion.div>
+
+        {/* Shared With You — records history */}
+        {sharedRecords.length > 0 && (
+          <motion.div
+            className="dp-shared-list-card"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.5 }}
+          >
+            <h3 className="dp-shared-list-title">
+              <FileTextIcon />
+              Shared With You
+              <span className="dp-shared-list-count">{sharedRecords.length}</span>
+            </h3>
+            <div className="dp-shared-list">
+              {sharedRecords.map((rec) => {
+                const expired = new Date(rec.expiresAt) < new Date();
+                return (
+                  <div key={rec.id} className="dp-shared-item">
+                    <div className="dp-shared-item-icon">
+                      <FileTextIcon />
+                    </div>
+                    <div className="dp-shared-item-info">
+                      <span className="dp-shared-item-title">{rec.title}</span>
+                      <span className="dp-shared-item-meta">
+                        From {truncateAddress(rec.patientAddress, 6, 4)} · {new Date(rec.scannedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      </span>
+                    </div>
+                    <span className={`dp-shared-item-badge${expired ? ' expired' : ''}`}>
+                      {expired ? 'Expired' : 'Active'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
 
         {/* How It Works */}
         <motion.div
