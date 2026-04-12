@@ -10,7 +10,7 @@ import { PROGRAM_ID, parseSharedRecordPlaintext, extractTitleAndDescription } fr
 import { WalletConnectModal } from '@/components/layout/WalletConnectModal';
 import './DoctorPage.css';
 
-type ScanStatus = 'idle' | 'scanning' | 'verifying' | 'success' | 'error';
+type ScanStatus = 'idle' | 'scanning' | 'verifying' | 'success' | 'pending' | 'error';
 
 interface ScannedRecord {
   title: string;
@@ -403,18 +403,16 @@ export function DoctorPage() {
 
         setRecordData({
           title: `${RECORD_TYPES[recordType].name} Record`,
-          description:
-            'The shared record was not found in your wallet yet. ' +
-            'This may happen if the transaction is still being confirmed. ' +
-            'Please try again in a few minutes.',
+          description: '',
           recordType,
           patientAddress: data.p,
           expiresAt: new Date(data.exp),
           accessToken: data.tx,
         });
+        setScanStatus('pending');
+      } else {
+        setScanStatus('success');
       }
-
-      setScanStatus('success');
     } catch (err) {
       console.error('Scan processing error:', err);
       setError(err instanceof Error ? err.message : 'Failed to process QR code');
@@ -731,6 +729,63 @@ export function DoctorPage() {
                 <button className="dp-btn dp-btn-secondary dp-btn-full" onClick={handleReset} style={{ marginTop: 20 }}>
                   <RefreshIcon />
                   Scan Another Code
+                </button>
+              </motion.div>
+            )}
+
+            {/* PENDING — QR is valid but no matching record in this wallet */}
+            {scanStatus === 'pending' && recordData && (
+              <motion.div key="pending" className="dp-card dp-pending-card" variants={fadeInUp} initial="hidden" animate="visible" exit="exit">
+                <div className="dp-pending-icon-wrap">
+                  <ClockIcon />
+                </div>
+
+                <p className="dp-pending-title">Record Not Yet Available</p>
+                <p className="dp-pending-subtitle">
+                  We verified the QR code, but no matching record was found in your connected wallet.
+                </p>
+
+                <div className="dp-pending-reasons">
+                  <div className="dp-pending-reason">
+                    <span className="dp-pending-reason-dot" />
+                    <div>
+                      <p className="dp-pending-reason-title">Transaction still confirming</p>
+                      <p className="dp-pending-reason-text">
+                        Aleo finalization can take a few minutes. Wait briefly and re-scan.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="dp-pending-reason">
+                    <span className="dp-pending-reason-dot dp-pending-reason-dot-warn" />
+                    <div>
+                      <p className="dp-pending-reason-title">This wallet wasn't authorized</p>
+                      <p className="dp-pending-reason-text">
+                        The patient may have shared with a different doctor address. Confirm with them, then scan again with the correct wallet.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="dp-pending-meta">
+                  <div className="dp-pending-meta-row">
+                    <span className="dp-pending-meta-label">Shared by</span>
+                    <code className="dp-pending-meta-value">{truncateAddress(recordData.patientAddress, 8, 6)}</code>
+                  </div>
+                  {scannedData && (
+                    <div className="dp-pending-meta-row">
+                      <span className="dp-pending-meta-label">Tx</span>
+                      <code className="dp-pending-meta-value">{truncateAddress(scannedData.tx, 8, 6)}</code>
+                    </div>
+                  )}
+                  <div className="dp-pending-meta-row">
+                    <span className="dp-pending-meta-label">Expires</span>
+                    <span className="dp-pending-meta-value">{formatDateTime(recordData.expiresAt)}</span>
+                  </div>
+                </div>
+
+                <button className="dp-btn dp-btn-primary dp-btn-full" onClick={handleReset}>
+                  <RefreshIcon />
+                  Scan Again
                 </button>
               </motion.div>
             )}

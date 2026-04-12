@@ -610,6 +610,132 @@
   border-radius: 6px;
 }
 
+/* Pending state — QR valid, but record not found in wallet */
+.dp-pending-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+}
+
+.dp-pending-icon-wrap {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: #FFF4E0;
+  color: #C77800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.dp-pending-icon-wrap svg {
+  width: 36px;
+  height: 36px;
+}
+
+.dp-pending-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: #111112;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.dp-pending-subtitle {
+  font-size: 14px;
+  color: #6A6A7A;
+  margin: 0 0 8px;
+  line-height: 1.55;
+  max-width: 360px;
+}
+
+.dp-pending-reasons {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #FAFAFC;
+  border: 1px solid #EAEAF2;
+  border-radius: 14px;
+  padding: 16px 18px;
+  text-align: left;
+}
+
+.dp-pending-reason {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.dp-pending-reason-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3B71FE;
+  margin-top: 7px;
+  flex-shrink: 0;
+}
+
+.dp-pending-reason-dot-warn {
+  background: #C77800;
+}
+
+.dp-pending-reason-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111112;
+  margin: 0 0 2px;
+}
+
+.dp-pending-reason-text {
+  font-size: 12px;
+  color: #6A6A7A;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.dp-pending-meta {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-top: 1px solid #F0F0F5;
+  margin-top: 4px;
+}
+
+.dp-pending-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.dp-pending-meta-label {
+  color: #8E8E9E;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.dp-pending-meta-value {
+  color: #111112;
+  font-weight: 500;
+}
+
+code.dp-pending-meta-value {
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  font-size: 11px;
+  background: #F5F5FA;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
 /* Error state */
 .dp-error-icon {
   width: 96px;
