@@ -215,6 +215,7 @@ export function DoctorPage() {
   const [regName, setRegName] = useState('');
   const [regSpecialty, setRegSpecialty] = useState('');
   const [regLoading, setRegLoading] = useState(false);
+  const [doctorName, setDoctorName] = useState<string | null>(null);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -232,7 +233,12 @@ export function DoctorPage() {
     if (!user?.isConnected || !user.address) return;
     let cancelled = false;
     getDoctorByAddress(user.address).then((doc) => {
-      if (!cancelled && !doc) setShowRegPrompt(true);
+      if (cancelled) return;
+      if (doc) {
+        setDoctorName(doc.name);
+      } else {
+        setShowRegPrompt(true);
+      }
     });
     return () => { cancelled = true; };
   }, [user?.isConnected, user?.address]);
@@ -241,6 +247,7 @@ export function DoctorPage() {
     if (!regName.trim() || !user?.address) return;
     setRegLoading(true);
     await registerDoctor(user.address, regName.trim(), regSpecialty.trim() || undefined);
+    setDoctorName(regName.trim());
     setRegLoading(false);
     setShowRegPrompt(false);
   };
@@ -601,7 +608,7 @@ export function DoctorPage() {
       <main className="dp-main">
         <div className="dp-page-title">
           <motion.h1 initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            Doctor Portal
+            {doctorName ? `Welcome, ${doctorName}` : 'Doctor Portal'}
           </motion.h1>
           <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2, duration: 0.5 }}>
             Scan patient QR codes to access shared medical records securely
