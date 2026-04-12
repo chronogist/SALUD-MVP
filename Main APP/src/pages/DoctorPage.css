@@ -394,6 +394,222 @@
   margin: 0;
 }
 
+/* ============================================================================
+   Redesigned success card — emphasis on the medical record content
+   ============================================================================ */
+
+.dp-success-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.dp-success-banner-thin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: #E0F5EB;
+  color: #00B976;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Header strip */
+.dp-record-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #F0F0F5;
+}
+
+.dp-record-head-icon {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 12px;
+  background: #EBF0FF;
+  color: #3B71FE;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dp-record-head-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.dp-record-head-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.dp-record-title-lg {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #111112;
+  margin: 0;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dp-record-type-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 12px;
+  background: #EBF0FF;
+  color: #3B71FE;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dp-record-shared-by {
+  font-size: 13px;
+  color: #8E8E9E;
+  margin: 0;
+}
+
+.dp-record-shared-by span {
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  color: #111112;
+  font-weight: 500;
+}
+
+/* Content box — the hero */
+.dp-record-content-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dp-record-content-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #8E8E9E;
+}
+
+.dp-record-content-label svg {
+  width: 14px;
+  height: 14px;
+}
+
+.dp-record-copy-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid #EAEAF2;
+  background: #FFFFFF;
+  color: #111112;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dp-record-copy-btn:hover {
+  background: #EBF0FF;
+  border-color: #3B71FE;
+  color: #3B71FE;
+}
+
+.dp-record-copy-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.dp-record-content-box {
+  background: #F5F5FA;
+  border: 1px solid #EAEAF2;
+  border-radius: 16px;
+  padding: 28px 32px;
+  min-height: 280px;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.dp-record-content-text {
+  font-size: 18px;
+  line-height: 1.65;
+  color: #1A1A1F;
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.dp-record-content-empty {
+  font-size: 15px;
+  color: #B8B8C8;
+  font-style: italic;
+  margin: 0;
+  text-align: center;
+  padding: 40px 0;
+}
+
+/* Footer strip */
+.dp-record-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid #F0F0F5;
+  font-size: 12px;
+  color: #8E8E9E;
+}
+
+.dp-record-footer-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dp-record-footer-left svg {
+  width: 12px;
+  height: 12px;
+}
+
+.dp-record-footer-sep {
+  color: #D0D0DC;
+  margin: 0 4px;
+}
+
+.dp-record-footer-tx {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dp-record-footer-tx code {
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  font-size: 11px;
+  color: #111112;
+  background: #F5F5FA;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
 /* Error state */
 .dp-error-icon {
   width: 96px;

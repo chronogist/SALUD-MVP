@@ -57,14 +57,18 @@ function bytesToField(bytes: Uint8Array): string {
  */
 export function fieldElementsToString(fields: string[]): string {
   const allBytes: number[] = [];
-  
+
   for (const fieldStr of fields) {
     const bytes = fieldToBytes(fieldStr);
     allBytes.push(...bytes);
   }
-  
-  const decoder = new TextDecoder();
-  return decoder.decode(new Uint8Array(allBytes));
+
+  // Strip trailing null bytes from the 8x30-byte field padding,
+  // otherwise JSON.parse on the result fails.
+  let end = allBytes.length;
+  while (end > 0 && allBytes[end - 1] === 0) end--;
+
+  return new TextDecoder().decode(new Uint8Array(allBytes.slice(0, end)));
 }
 
 /**

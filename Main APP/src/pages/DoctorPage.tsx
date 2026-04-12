@@ -445,6 +445,16 @@ export function DoctorPage() {
     setScanStatus('idle');
   };
 
+  const [descCopied, setDescCopied] = useState(false);
+  const handleCopyDescription = async () => {
+    if (!recordData?.description) return;
+    const ok = await copyToClipboard(recordData.description);
+    if (ok) {
+      setDescCopied(true);
+      setTimeout(() => setDescCopied(false), 2000);
+    }
+  };
+
   return (
     <div className="dp-wrapper">
       {/* Minimal Header */}
@@ -670,56 +680,68 @@ export function DoctorPage() {
 
             {/* SUCCESS */}
             {scanStatus === 'success' && recordData && (
-              <motion.div key="success" className="dp-card" variants={fadeInUp} initial="hidden" animate="visible" exit="exit">
-                <div className="dp-success-banner">
+              <motion.div key="success" className="dp-card dp-success-card" variants={fadeInUp} initial="hidden" animate="visible" exit="exit">
+                <div className="dp-success-banner-thin">
                   <CheckCircleIcon />
                   Record Accessed Successfully
                 </div>
 
-                <div className="dp-record-card" style={{ marginTop: 20 }}>
-                  <div className="dp-record-header">
-                    <div className="dp-record-icon">
-                      <FileTextIcon />
-                    </div>
-                    <div>
-                      <h3 className="dp-record-title">{recordData.title}</h3>
-                      <span className="dp-record-type-badge">
+                {/* Header strip — title + type + patient */}
+                <div className="dp-record-head">
+                  <div className="dp-record-head-icon">
+                    <FileTextIcon />
+                  </div>
+                  <div className="dp-record-head-info">
+                    <div className="dp-record-head-title-row">
+                      <h2 className="dp-record-title-lg">{recordData.title || 'Medical Record'}</h2>
+                      <span className="dp-record-type-pill">
                         {RECORD_TYPES[recordData.recordType].name}
                       </span>
                     </div>
+                    <p className="dp-record-shared-by">
+                      Shared by <span>{truncateAddress(recordData.patientAddress, 8, 6)}</span>
+                    </p>
                   </div>
+                </div>
 
-                  <p className="dp-record-description">{recordData.description}</p>
-
-                  <div className="dp-record-meta">
-                    <div className="dp-meta-row">
-                      <span className="dp-meta-label"><UserIcon /> Patient</span>
-                      <span className="dp-meta-value">{truncateAddress(recordData.patientAddress, 8, 6)}</span>
-                    </div>
-                    <div className="dp-meta-row">
-                      <span className="dp-meta-label"><ClockIcon /> Access Expires</span>
-                      <span className="dp-meta-value" style={{ fontFamily: 'Inter, sans-serif' }}>
-                        {formatDateTime(recordData.expiresAt)}
-                      </span>
-                    </div>
-                    {scannedData && (
-                      <div className="dp-meta-row">
-                        <span className="dp-meta-label"><ShieldIcon size={14} /> Transaction</span>
-                        <span className="dp-meta-value">{truncateAddress(scannedData.tx, 8, 6)}</span>
-                      </div>
+                {/* THE BIG ONE — medical content */}
+                <div className="dp-record-content-wrap">
+                  <div className="dp-record-content-label">
+                    <FileTextIcon />
+                    Medical Record Details
+                    <button
+                      type="button"
+                      className="dp-record-copy-btn"
+                      onClick={handleCopyDescription}
+                      aria-label="Copy record content"
+                    >
+                      {descCopied ? <CheckIcon /> : <CopyIcon />}
+                      {descCopied ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                  <div className="dp-record-content-box">
+                    {recordData.description && recordData.description.trim() ? (
+                      <p className="dp-record-content-text">{recordData.description}</p>
+                    ) : (
+                      <p className="dp-record-content-empty">No additional details were provided with this record.</p>
                     )}
                   </div>
                 </div>
 
-                <div className="dp-privacy-notice" style={{ marginTop: 20 }}>
-                  <ShieldIcon size={20} />
-                  <div>
-                    <p className="dp-privacy-title">Decrypted by Aleo</p>
-                    <p className="dp-privacy-text">
-                      This record was encrypted to your wallet address by the Aleo network.
-                      Only you can decrypt it with your view key.
-                    </p>
+                {/* Footer strip — verification metadata */}
+                <div className="dp-record-footer">
+                  <div className="dp-record-footer-left">
+                    <ShieldIcon size={14} />
+                    <span>Decrypted by Aleo</span>
+                    <span className="dp-record-footer-sep">•</span>
+                    <ClockIcon />
+                    <span>Expires {formatDateTime(recordData.expiresAt)}</span>
                   </div>
+                  {scannedData && (
+                    <div className="dp-record-footer-tx">
+                      Tx: <code>{truncateAddress(scannedData.tx, 8, 6)}</code>
+                    </div>
+                  )}
                 </div>
 
                 <button className="dp-btn dp-btn-secondary dp-btn-full" onClick={handleReset} style={{ marginTop: 20 }}>

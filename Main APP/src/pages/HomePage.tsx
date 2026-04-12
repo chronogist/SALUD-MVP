@@ -1,7 +1,43 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Pencil, Check, X } from 'lucide-react';
 import { SiteLayout } from '@/components/layout/SiteLayout';
 import './HomePage.css';
+
+// --- Vitals state ---
+
+type VitalsData = {
+  healthIndex: { value: string; badge: string; badgeDirection: 'up' | 'down'; description: string };
+  bloodPressure: { value: string; badge: string; badgeDirection: 'up' | 'down' };
+  heartRate: { value: string; badge: string; badgeDirection: 'up' | 'down' };
+  cholesterol: { value: string; badge: string; badgeDirection: 'up' | 'down' };
+  sleep: { value: string; badge: string; badgeDirection: 'up' | 'down' };
+};
+
+const DEFAULT_VITALS: VitalsData = {
+  healthIndex: {
+    value: '88',
+    badge: '+4 pts',
+    badgeDirection: 'up',
+    description: 'Your composite health score based on recent lab results and wearable data. Routine bloodwork indicates positive trends.',
+  },
+  bloodPressure: { value: '110/70', badge: '-2%', badgeDirection: 'down' },
+  heartRate: { value: '62', badge: '-4 bpm', badgeDirection: 'down' },
+  cholesterol: { value: '95', badge: '-12 mg', badgeDirection: 'down' },
+  sleep: { value: '7h 20', badge: '+45m', badgeDirection: 'up' },
+};
+
+const VITALS_STORAGE_KEY = 'salud_vitals_data';
+
+function loadVitals(): VitalsData {
+  try {
+    const stored = localStorage.getItem(VITALS_STORAGE_KEY);
+    if (!stored) return DEFAULT_VITALS;
+    return { ...DEFAULT_VITALS, ...JSON.parse(stored) };
+  } catch {
+    return DEFAULT_VITALS;
+  }
+}
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 30 },
@@ -87,6 +123,8 @@ function MetricCard({
   description,
   large = false,
   index = 0,
+  editing = false,
+  onChange,
 }: {
   title: string;
   value: string;
@@ -94,13 +132,15 @@ function MetricCard({
   badgeDirection: 'up' | 'down';
   theme: string;
   fillWidth: string;
-  description?: React.ReactNode;
+  description?: string;
   large?: boolean;
   index?: number;
+  editing?: boolean;
+  onChange?: (patch: { value?: string; badge?: string; badgeDirection?: 'up' | 'down'; description?: string }) => void;
 }) {
   return (
     <motion.div
-      className={`hp-card hp-theme-${theme}`}
+      className={`hp-card hp-theme-${theme}${editing ? ' editing' : ''}`}
       custom={index}
       initial="hidden"
       animate="visible"
@@ -108,16 +148,58 @@ function MetricCard({
     >
       <div className="hp-card-header">
         <span className="hp-card-title">{title}</span>
-        <div className="hp-badge">
-          {badgeDirection === 'up' ? <ArrowUpIcon /> : <ArrowDownIcon />}
-          {badge}
-        </div>
+        {editing ? (
+          <div className="hp-badge-edit">
+            <button
+              type="button"
+              className="hp-badge-direction-toggle"
+              onClick={() => onChange?.({ badgeDirection: badgeDirection === 'up' ? 'down' : 'up' })}
+              aria-label="Toggle trend direction"
+            >
+              {badgeDirection === 'up' ? <ArrowUpIcon /> : <ArrowDownIcon />}
+            </button>
+            <input
+              type="text"
+              className="hp-edit-input hp-edit-badge"
+              value={badge}
+              onChange={(e) => onChange?.({ badge: e.target.value })}
+              placeholder="trend"
+            />
+          </div>
+        ) : (
+          <div className="hp-badge">
+            {badgeDirection === 'up' ? <ArrowUpIcon /> : <ArrowDownIcon />}
+            {badge}
+          </div>
+        )}
       </div>
       <div className="hp-indicator-track">
         <div className="hp-indicator-fill" style={{ width: fillWidth }} />
       </div>
-      <div className={`hp-data-value${large ? '' : ' medium'}`}>{value}</div>
-      {description && <p className="hp-data-description">{description}</p>}
+      {editing ? (
+        <input
+          type="text"
+          className={`hp-edit-input hp-edit-value${large ? '' : ' medium'}`}
+          value={value}
+          onChange={(e) => onChange?.({ value: e.target.value })}
+          placeholder="value"
+        />
+      ) : (
+        <div className={`hp-data-value${large ? '' : ' medium'}`}>{value}</div>
+      )}
+      {large && (
+        editing ? (
+          <textarea
+            className="hp-edit-input hp-edit-description"
+            value={description ?? ''}
+            onChange={(e) => onChange?.({ description: e.target.value })}
+            placeholder="description"
+            rows={3}
+          />
+        ) : (
+          description && <p className="hp-data-description">{description}</p>
+        )
+      )}
     </motion.div>
   );
 }
@@ -176,69 +258,126 @@ function RecordCard({
 // --- Main Homepage Component ---
 
 export function HomePage() {
+  const [vitals, setVitals] = useState<VitalsData>(DEFAULT_VITALS);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<VitalsData>(DEFAULT_VITALS);
+
+  useEffect(() => {
+    setVitals(loadVitals());
+  }, []);
+
+  const startEdit = () => {
+    setDraft(vitals);
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setEditing(false);
+  };
+
+  const saveEdit = () => {
+    setVitals(draft);
+    try {
+      localStorage.setItem(VITALS_STORAGE_KEY, JSON.stringify(draft));
+    } catch {
+      // ignore quota/availability errors
+    }
+    setEditing(false);
+  };
+
+  const updateField = <K extends keyof VitalsData>(key: K, patch: Partial<VitalsData[K]>) => {
+    setDraft((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
+  };
+
+  const view = editing ? draft : vitals;
+
   return (
     <SiteLayout>
         {/* Vitals Overview */}
         <section className="hp-section">
-          <motion.h2 initial="hidden" animate="visible" variants={fadeInUp} custom={0}>
-            Vitals Overview
-          </motion.h2>
+          <div className="hp-section-header">
+            <motion.h2 initial="hidden" animate="visible" variants={fadeInUp} custom={0}>
+              Vitals Overview
+            </motion.h2>
+            <motion.div className="hp-controls" custom={0.2} initial="hidden" animate="visible" variants={fadeIn}>
+              {editing ? (
+                <>
+                  <button className="hp-btn-edit" onClick={saveEdit} aria-label="Save vitals">
+                    <Check size={16} />
+                  </button>
+                  <button className="hp-btn-edit hp-btn-edit-cancel" onClick={cancelEdit} aria-label="Cancel edit">
+                    <X size={16} />
+                  </button>
+                </>
+              ) : (
+                <button className="hp-btn-edit" onClick={startEdit} aria-label="Edit vitals">
+                  <Pencil size={16} />
+                </button>
+              )}
+            </motion.div>
+          </div>
 
           <div className="hp-metrics-layout">
             {/* Large card */}
             <MetricCard
               title="Overall Health Index"
-              value="88"
-              badge="+4 pts"
-              badgeDirection="up"
+              value={view.healthIndex.value}
+              badge={view.healthIndex.badge}
+              badgeDirection={view.healthIndex.badgeDirection}
               theme="blue"
               fillWidth="88%"
               large
               index={1}
-              description={
-                <>
-                  Your composite health score based on recent lab results and wearable data. Routine bloodwork indicates positive trends. Shared securely with <strong>Dr. Aris</strong>.
-                </>
-              }
+              description={view.healthIndex.description}
+              editing={editing}
+              onChange={(patch) => updateField('healthIndex', patch)}
             />
 
             {/* Small metrics grid */}
             <div className="hp-small-metrics">
               <MetricCard
                 title="Blood Pressure"
-                value="110/70"
-                badge="-2%"
-                badgeDirection="down"
+                value={view.bloodPressure.value}
+                badge={view.bloodPressure.badge}
+                badgeDirection={view.bloodPressure.badgeDirection}
                 theme="blue"
                 fillWidth="60%"
                 index={2}
+                editing={editing}
+                onChange={(patch) => updateField('bloodPressure', patch)}
               />
               <MetricCard
                 title="Resting Heart Rate"
-                value="62"
-                badge="-4 bpm"
-                badgeDirection="down"
+                value={view.heartRate.value}
+                badge={view.heartRate.badge}
+                badgeDirection={view.heartRate.badgeDirection}
                 theme="green"
                 fillWidth="45%"
                 index={3}
+                editing={editing}
+                onChange={(patch) => updateField('heartRate', patch)}
               />
               <MetricCard
                 title="Cholesterol (LDL)"
-                value="95"
-                badge="-12 mg"
-                badgeDirection="down"
+                value={view.cholesterol.value}
+                badge={view.cholesterol.badge}
+                badgeDirection={view.cholesterol.badgeDirection}
                 theme="pink"
                 fillWidth="75%"
                 index={4}
+                editing={editing}
+                onChange={(patch) => updateField('cholesterol', patch)}
               />
               <MetricCard
                 title="Sleep Average"
-                value="7h 20"
-                badge="+45m"
-                badgeDirection="up"
+                value={view.sleep.value}
+                badge={view.sleep.badge}
+                badgeDirection={view.sleep.badgeDirection}
                 theme="purple"
                 fillWidth="85%"
                 index={5}
+                editing={editing}
+                onChange={(patch) => updateField('sleep', patch)}
               />
             </div>
           </div>

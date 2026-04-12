@@ -647,6 +647,130 @@
   transform: scale(0.95);
 }
 
+/* Edit button */
+.hp-btn-edit {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 2px solid #EAEAF2;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--hp-text-primary);
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.hp-btn-edit:hover {
+  background: var(--hp-accent-blue-bg);
+  border-color: var(--hp-accent-blue);
+  color: var(--hp-accent-blue);
+}
+
+.hp-btn-edit:active {
+  transform: scale(0.95);
+}
+
+.hp-btn-edit-cancel:hover {
+  background: var(--hp-accent-pink-bg);
+  border-color: var(--hp-accent-pink);
+  color: var(--hp-accent-pink);
+}
+
+/* Edit-mode card */
+.hp-card.editing {
+  outline: 2px dashed var(--hp-accent-blue);
+  outline-offset: -2px;
+}
+
+/* Edit inputs (shared) */
+.hp-edit-input {
+  font-family: inherit;
+  color: var(--hp-text-primary);
+  background: #F5F5FA;
+  border: 1px solid #EAEAF2;
+  border-radius: 10px;
+  padding: 8px 12px;
+  outline: none;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.hp-edit-input:focus {
+  border-color: var(--hp-accent-blue);
+  background: #FFFFFF;
+}
+
+.hp-edit-input::placeholder {
+  color: var(--hp-text-tertiary);
+}
+
+/* Edit value (replaces hp-data-value) */
+.hp-edit-value {
+  font-size: 64px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  padding: 12px 16px;
+  width: 100%;
+  margin-top: 16px;
+}
+
+.hp-edit-value.medium {
+  font-size: 44px;
+  margin-top: 12px;
+}
+
+/* Edit description (replaces hp-data-description) */
+.hp-edit-description {
+  font-size: 14px;
+  line-height: 1.5;
+  width: 100%;
+  margin-top: 16px;
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* Edit badge */
+.hp-badge-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hp-edit-badge {
+  width: 90px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 10px;
+  text-align: center;
+}
+
+.hp-badge-direction-toggle {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid #EAEAF2;
+  background: #F5F5FA;
+  color: var(--hp-text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hp-badge-direction-toggle:hover {
+  background: var(--hp-accent-blue-bg);
+  border-color: var(--hp-accent-blue);
+  color: var(--hp-accent-blue);
+}
+
+.hp-badge-direction-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
 /* Records Grid */
 .hp-records-grid {
   display: grid;
