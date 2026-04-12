@@ -36,6 +36,7 @@ import { useUserStore, useRecordsStore } from '@/store';
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { TransactionStatus } from '@provablehq/aleo-types';
 import { PROGRAM_ID, prepareShareRecordInputs } from '@/lib/aleo-utils';
+import { searchDoctors, type DoctorEntry } from '@/lib/supabase';
 import { useSyncRecords } from '@/hooks/useSyncRecords';
 
 type Step = 'configure' | 'submitting' | 'share' | 'error';
@@ -57,6 +58,14 @@ export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModa
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
   const [countdown, setCountdown] = useState<string>('');
   const [copied, setCopied] = useState(false);
+
+  // Doctor search
+  const [doctorQuery, setDoctorQuery] = useState('');
+  const [doctorResults, setDoctorResults] = useState<DoctorEntry[]>([]);
+  const [selectedDoctor, setSelectedDoctor] = useState<DoctorEntry | null>(null);
+  const [showDoctorDropdown, setShowDoctorDropdown] = useState(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const doctorSearchRef = useRef<HTMLDivElement>(null);
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -80,8 +89,49 @@ export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModa
       setAccessToken(null);
       setExpiresAt(null);
       setCopied(false);
+      setDoctorQuery('');
+      setDoctorResults([]);
+      setSelectedDoctor(null);
+      setShowDoctorDropdown(false);
     }
   }, [open]);
+
+  // Search doctors as user types
+  useEffect(() => {
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    if (doctorQuery.length < 2) {
+      setDoctorResults([]);
+      setShowDoctorDropdown(false);
+      return;
+    }
+    searchTimeoutRef.current = setTimeout(async () => {
+      const results = await searchDoctors(doctorQuery);
+      setDoctorResults(results);
+      setShowDoctorDropdown(results.length > 0);
+    }, 300);
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, [doctorQuery]);
+
+  // Close doctor dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (doctorSearchRef.current && !doctorSearchRef.current.contains(e.target as Node)) {
+        setShowDoctorDropdown(false);
+      }
+    };
+    if (showDoctorDropdown) document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showDoctorDropdown]);
+
+  const handleSelectDoctor = (doc: DoctorEntry) => {
+    setSelectedDoctor(doc);
+    setDoctorAddress(doc.address);
+    setDoctorQuery(doc.name);
+    setShowDoctorDropdown(false);
+    setAddressError(null);
+  };
 
   // Countdown timer
   useEffect(() => {
@@ -337,23 +387,83 @@ export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModa
                 <p className="text-xs text-slate-500">{recordType.name}</p>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2" ref={doctorSearchRef}>
                 <label className="text-sm font-medium text-slate-700">
-                  Doctor's Aleo Address
+                  Doctor's Name
                   <span className="ml-1 text-xs font-normal text-danger-500">*Required</span>
                 </label>
-                <Input
-                  placeholder="aleo1..."
-                  value={doctorAddress}
-                  onChange={(e) => {
-                    setDoctorAddress(e.target.value);
-                    setAddressError(null);
-                  }}
-                />
-                <p className="text-xs text-slate-500">
-                  The doctor's record will be encrypted to this address by the Aleo network.
-                </p>
+                <div className="relative">
+                  <Input
+                    placeholder="Search by doctor name..."
+                    value={doctorQuery}
+                    onChange={(e) => {
+                      setDoctorQuery(e.target.value);
+                      if (selectedDoctor && e.target.value !== selectedDoctor.name) {
+                        setSelectedDoctor(null);
+                        setDoctorAddress('');
+                      }
+                      setAddressError(null);
+                    }}
+                  />
+                  {showDoctorDropdown && doctorResults.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border border-slate-200 bg-white shadow-lg overflow-hidden">
+                      {doctorResults.map((doc) => (
+                        <button
+                          key={doc.address}
+                          type="button"
+                          className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors"
+                          onClick={() => handleSelectDoctor(doc)}
+                        >
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 text-sm font-semibold text-primary-700">
+                            {doc.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-slate-900 truncate">{doc.name}</p>
+                            <p className="text-xs text-slate-500 truncate">
+                              {doc.specialty ? `${doc.specialty} · ` : ''}
+                              {truncateAddress(doc.address, 8, 6)}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {selectedDoctor ? (
+                  <div className="flex items-center gap-2 rounded-lg bg-primary-50 px-3 py-2">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-200 text-xs font-bold text-primary-700">
+                      {selectedDoctor.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-primary-900 truncate">{selectedDoctor.name}</p>
+                    </div>
+                    <span className="text-xs font-mono text-primary-600">{truncateAddress(selectedDoctor.address, 6, 4)}</span>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500">
+                    Type at least 2 characters to search registered doctors.
+                  </p>
+                )}
               </div>
+
+              <details className="group">
+                <summary className="cursor-pointer text-xs text-slate-400 hover:text-slate-600">
+                  Or enter Aleo address manually
+                </summary>
+                <div className="mt-2">
+                  <Input
+                    placeholder="aleo1..."
+                    value={selectedDoctor ? '' : doctorAddress}
+                    onChange={(e) => {
+                      setDoctorAddress(e.target.value);
+                      setSelectedDoctor(null);
+                      setDoctorQuery('');
+                      setAddressError(null);
+                    }}
+                    disabled={!!selectedDoctor}
+                  />
+                </div>
+              </details>
 
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">
@@ -520,8 +630,8 @@ export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModa
                 </div>
                 <div className="mt-2 flex items-center justify-between">
                   <span className="text-xs text-slate-500">Shared with</span>
-                  <span className="text-sm font-mono text-slate-900 truncate max-w-[150px]" title={doctorAddress}>
-                    {truncateAddress(doctorAddress)}
+                  <span className="text-sm text-slate-900 truncate max-w-[200px]" title={doctorAddress}>
+                    {selectedDoctor ? selectedDoctor.name : truncateAddress(doctorAddress)}
                   </span>
                 </div>
               </div>

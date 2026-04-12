@@ -7,6 +7,7 @@ import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { formatDateTime, truncateAddress, copyToClipboard } from '@/lib/utils';
 import { RECORD_TYPES, type QRCodeData, type RecordType } from '@/types/records';
 import { PROGRAM_ID, parseSharedRecordPlaintext, extractTitleAndDescription } from '@/lib/aleo-utils';
+import { getDoctorByAddress, registerDoctor } from '@/lib/supabase';
 import { WalletConnectModal } from '@/components/layout/WalletConnectModal';
 import './DoctorPage.css';
 
@@ -209,6 +210,12 @@ export function DoctorPage() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const bubbleTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Doctor registration prompt
+  const [showRegPrompt, setShowRegPrompt] = useState(false);
+  const [regName, setRegName] = useState('');
+  const [regSpecialty, setRegSpecialty] = useState('');
+  const [regLoading, setRegLoading] = useState(false);
+
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -219,6 +226,24 @@ export function DoctorPage() {
   useEffect(() => {
     return () => { stopScanner(); };
   }, []);
+
+  // Check if connected doctor is registered
+  useEffect(() => {
+    if (!user?.isConnected || !user.address) return;
+    let cancelled = false;
+    getDoctorByAddress(user.address).then((doc) => {
+      if (!cancelled && !doc) setShowRegPrompt(true);
+    });
+    return () => { cancelled = true; };
+  }, [user?.isConnected, user?.address]);
+
+  const handleRegister = async () => {
+    if (!regName.trim() || !user?.address) return;
+    setRegLoading(true);
+    await registerDoctor(user.address, regName.trim(), regSpecialty.trim() || undefined);
+    setRegLoading(false);
+    setShowRegPrompt(false);
+  };
 
   // Show connect bubble when not connected
   useEffect(() => {
@@ -835,6 +860,72 @@ export function DoctorPage() {
           </div>
         </motion.div>
       </main>
+
+      {/* Doctor Registration Prompt */}
+      <AnimatePresence>
+        {showRegPrompt && (
+          <motion.div
+            className="dp-reg-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="dp-reg-modal"
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.25 }}
+            >
+              <div className="dp-reg-icon">
+                <ShieldIcon size={28} />
+              </div>
+              <h3 className="dp-reg-title">Complete Your Profile</h3>
+              <p className="dp-reg-subtitle">
+                Register your name so patients can easily find and share records with you.
+              </p>
+
+              <div className="dp-reg-fields">
+                <label className="dp-reg-label">
+                  Full Name
+                  <input
+                    type="text"
+                    className="dp-reg-input"
+                    placeholder="Dr. Jane Smith"
+                    value={regName}
+                    onChange={(e) => setRegName(e.target.value)}
+                    autoFocus
+                  />
+                </label>
+                <label className="dp-reg-label">
+                  Specialty <span className="dp-reg-optional">(optional)</span>
+                  <input
+                    type="text"
+                    className="dp-reg-input"
+                    placeholder="e.g. Cardiologist"
+                    value={regSpecialty}
+                    onChange={(e) => setRegSpecialty(e.target.value)}
+                  />
+                </label>
+              </div>
+
+              <button
+                className="dp-btn dp-btn-primary dp-btn-full"
+                onClick={handleRegister}
+                disabled={!regName.trim() || regLoading}
+              >
+                {regLoading ? 'Saving...' : 'Register'}
+              </button>
+              <button
+                className="dp-reg-skip"
+                onClick={() => setShowRegPrompt(false)}
+              >
+                Skip for now
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <WalletConnectModal open={showConnectModal} onOpenChange={setShowConnectModal} />
     </div>

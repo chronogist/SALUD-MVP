@@ -843,3 +843,116 @@ code.dp-pending-meta-value {
     padding: 24px;
   }
 }
+
+/* --- Doctor Registration Modal --- */
+.dp-reg-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+}
+
+.dp-reg-modal {
+  background: #FFFFFF;
+  border-radius: 24px;
+  padding: 36px 32px 28px;
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.dp-reg-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: #EBF0FF;
+  color: #3B71FE;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.dp-reg-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #111112;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.dp-reg-subtitle {
+  font-size: 14px;
+  color: #6A6A7A;
+  margin: 0 0 8px;
+  line-height: 1.5;
+}
+
+.dp-reg-fields {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: left;
+}
+
+.dp-reg-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111112;
+}
+
+.dp-reg-optional {
+  font-weight: 400;
+  color: #8E8E9E;
+}
+
+.dp-reg-input {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid #EAEAF2;
+  background: #FAFAFC;
+  font-size: 15px;
+  font-family: inherit;
+  color: #111112;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dp-reg-input:focus {
+  border-color: #3B71FE;
+  box-shadow: 0 0 0 3px rgba(59, 113, 254, 0.12);
+}
+
+.dp-reg-input::placeholder {
+  color: #B8B8C8;
+}
+
+.dp-reg-skip {
+  background: none;
+  border: none;
+  color: #8E8E9E;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 8px 16px;
+  font-family: inherit;
+  transition: color 0.2s ease;
+}
+
+.dp-reg-skip:hover {
+  color: #111112;
+}
