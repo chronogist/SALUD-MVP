@@ -1,5 +1,8 @@
 {
   "buildCommand": "cd 'Main APP' && npm install && npm run build",
   "outputDirectory": "Main APP/dist",
-  "installCommand": "cd 'Main APP' && npm install"
+  "installCommand": "cd 'Main APP' && npm install",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
