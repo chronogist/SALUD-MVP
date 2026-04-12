@@ -52,7 +52,7 @@
 /* --- Main --- */
 .dp-main {
   width: 100%;
-  max-width: 720px;
+  max-width: 1100px;
   padding: 0 48px 80px;
   display: flex;
   flex-direction: column;
@@ -883,6 +883,142 @@ code.dp-pending-meta-value {
   line-height: 1.6;
 }
 
+/* --- Two-Column Layout --- */
+.dp-two-column {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  align-items: start;
+}
+
+.dp-two-column > * {
+  min-width: 0;
+}
+
+/* --- Clickable Record Items --- */
+.dp-shared-item-clickable {
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: none;
+  font-family: inherit;
+  width: 100%;
+  text-align: left;
+}
+
+.dp-shared-item-clickable:hover {
+  background: #EBF0FF;
+  border-color: #3B71FE;
+}
+
+.dp-shared-item-clickable:hover .dp-shared-item-icon {
+  background: #3B71FE;
+  color: #FFFFFF;
+}
+
+/* --- Record Detail Modal --- */
+.dp-record-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+}
+
+.dp-record-modal {
+  background: #FFFFFF;
+  border-radius: 24px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+}
+
+.dp-record-modal-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 28px 28px 20px;
+  border-bottom: 1px solid #F0F0F5;
+}
+
+.dp-record-modal-header .dp-record-head-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dp-record-modal-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #111112;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.dp-record-modal-close {
+  background: none;
+  border: none;
+  color: #8E8E9E;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.dp-record-modal-close:hover {
+  color: #FF4B4B;
+  background: #FFF0F0;
+}
+
+.dp-record-modal-body {
+  padding: 24px 28px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.dp-record-modal-text {
+  font-size: 15px;
+  color: #111112;
+  line-height: 1.7;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.dp-record-modal-empty {
+  font-size: 14px;
+  color: #8E8E9E;
+  text-align: center;
+  padding: 32px 0;
+  margin: 0;
+}
+
+.dp-record-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 28px;
+  border-top: 1px solid #F0F0F5;
+  background: #FAFAFC;
+}
+
+.dp-record-modal-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: #8E8E9E;
+}
+
 /* --- How It Works --- */
 .dp-how-card {
   background: #FFFFFF;
@@ -938,6 +1074,16 @@ code.dp-pending-meta-value {
 }
 
 /* --- Responsive --- */
+@media (max-width: 860px) {
+  .dp-two-column {
+    grid-template-columns: 1fr;
+  }
+
+  .dp-main {
+    max-width: 720px;
+  }
+}
+
 @media (max-width: 600px) {
   .dp-header {
     padding: 16px 20px;
@@ -961,6 +1107,18 @@ code.dp-pending-meta-value {
 
   .dp-how-card {
     padding: 24px;
+  }
+
+  .dp-record-modal {
+    max-width: 100%;
+    border-radius: 20px;
+  }
+
+  .dp-record-modal-header,
+  .dp-record-modal-body,
+  .dp-record-modal-footer {
+    padding-left: 20px;
+    padding-right: 20px;
   }
 }
 

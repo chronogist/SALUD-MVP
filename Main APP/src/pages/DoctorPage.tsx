@@ -6,7 +6,7 @@ import { useUserStore, useRecordsStore } from '@/store';
 import { getRecordDisplayData } from '@/types/records';
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { formatDateTime, truncateAddress, copyToClipboard } from '@/lib/utils';
-import { RECORD_TYPES, type QRCodeData, type RecordType } from '@/types/records';
+import { RECORD_TYPES, type QRCodeData, type RecordType, type MedicalRecord } from '@/types/records';
 import { PROGRAM_ID, parseSharedRecordPlaintext, extractTitleAndDescription } from '@/lib/aleo-utils';
 import { getDoctorByAddress, registerDoctor } from '@/lib/supabase';
 import { WalletConnectModal } from '@/components/layout/WalletConnectModal';
@@ -229,6 +229,7 @@ export function DoctorPage() {
   const records = useRecordsStore((state) => state.records);
 
   const doctorRecords = records.filter((r) => r.ownerAddress === user?.address);
+  const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
 
   useEffect(() => {
     return () => { stopScanner(); };
@@ -629,6 +630,7 @@ export function DoctorPage() {
           style={{ display: scanStatus === 'scanning' ? 'block' : 'none' }}
         />
 
+        <div className="dp-two-column">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.5 }}>
           <AnimatePresence mode="wait">
             {/* IDLE */}
@@ -867,25 +869,86 @@ export function DoctorPage() {
             ) : (
               <div className="dp-shared-list">
                 {doctorRecords.map((rec) => {
-                  const { title } = getRecordDisplayData(rec);
+                  const { title, description } = getRecordDisplayData(rec);
                   const typeName = RECORD_TYPES[rec.recordType as RecordType]?.name || 'Record';
                   return (
-                    <div key={rec.id} className="dp-shared-item">
+                    <button
+                      key={rec.id}
+                      className="dp-shared-item dp-shared-item-clickable"
+                      onClick={() => setSelectedRecord(rec)}
+                    >
                       <div className="dp-shared-item-icon">
                         <FileTextIcon />
                       </div>
                       <div className="dp-shared-item-info">
                         <span className="dp-shared-item-title">{title}</span>
-                        <span className="dp-shared-item-meta">{typeName}</span>
+                        <span className="dp-shared-item-meta">{description ? description.slice(0, 60) + (description.length > 60 ? '…' : '') : typeName}</span>
                       </div>
                       <span className="dp-shared-item-badge">{typeName}</span>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
             )}
           </motion.div>
         )}
+        </div>{/* end dp-two-column */}
+
+        {/* Record Detail Modal */}
+        <AnimatePresence>
+          {selectedRecord && (() => {
+            const { title, description } = getRecordDisplayData(selectedRecord);
+            const typeName = RECORD_TYPES[selectedRecord.recordType as RecordType]?.name || 'Record';
+            return (
+              <motion.div
+                className="dp-record-modal-overlay"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setSelectedRecord(null)}
+              >
+                <motion.div
+                  className="dp-record-modal"
+                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="dp-record-modal-header">
+                    <div className="dp-record-head-icon">
+                      <FileTextIcon />
+                    </div>
+                    <div className="dp-record-head-info">
+                      <h2 className="dp-record-modal-title">{title}</h2>
+                      <span className="dp-record-type-pill">{typeName}</span>
+                    </div>
+                    <button className="dp-record-modal-close" onClick={() => setSelectedRecord(null)}>
+                      <XCircleIcon size={24} />
+                    </button>
+                  </div>
+
+                  <div className="dp-record-modal-body">
+                    {description && description.trim() ? (
+                      <p className="dp-record-modal-text">{description}</p>
+                    ) : (
+                      <p className="dp-record-modal-empty">No additional details were provided with this record.</p>
+                    )}
+                  </div>
+
+                  <div className="dp-record-modal-footer">
+                    <div className="dp-record-modal-meta">
+                      <span>Created: {selectedRecord.createdAt ? new Date(selectedRecord.createdAt).toLocaleDateString() : '—'}</span>
+                      <span>Type: {typeName}</span>
+                    </div>
+                    <button className="dp-btn dp-btn-secondary" onClick={() => setSelectedRecord(null)}>
+                      Close
+                    </button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            );
+          })()}
+        </AnimatePresence>
 
         {/* How It Works */}
         <motion.div
