@@ -45,9 +45,11 @@ interface ShareRecordModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   record: MedicalRecord | null;
+  prefillDoctorAddress?: string;
+  prefillDoctorName?: string;
 }
 
-export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModalProps) {
+export function ShareRecordModal({ open, onOpenChange, record, prefillDoctorAddress, prefillDoctorName }: ShareRecordModalProps) {
   const [step, setStep] = useState<Step>('configure');
   const [doctorAddress, setDoctorAddress] = useState('');
   const [durationBlocks, setDurationBlocks] = useState(5760);
@@ -93,8 +95,19 @@ export function ShareRecordModal({ open, onOpenChange, record }: ShareRecordModa
       setDoctorResults([]);
       setSelectedDoctor(null);
       setShowDoctorDropdown(false);
+    } else if (prefillDoctorAddress) {
+      setDoctorAddress(prefillDoctorAddress);
+      setDoctorQuery(prefillDoctorName || '');
+      if (prefillDoctorName) {
+        setSelectedDoctor({
+          address: prefillDoctorAddress,
+          name: prefillDoctorName,
+          specialty: null,
+          created_at: '',
+        });
+      }
     }
-  }, [open]);
+  }, [open, prefillDoctorAddress, prefillDoctorName]);
 
   // Search doctors as user types
   useEffect(() => {

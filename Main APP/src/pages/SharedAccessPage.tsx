@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { SiteLayout } from '@/components/layout/SiteLayout';
 import { useRecordsStore, useUserStore } from '@/store';
 import { getRecordDisplayData } from '@/types/records';
-import type { AccessGrant } from '@/types/records';
+import type { AccessGrant, MedicalRecord } from '@/types/records';
+import { ShareRecordModal } from '@/components/records/ShareRecordModal';
 import { getAllDoctors, type DoctorEntry } from '@/lib/supabase';
 import { truncateAddress } from '@/lib/utils';
 import './SharedAccessPage.css';
@@ -101,6 +102,9 @@ export function SharedAccessPage() {
   const [selectedDoctorAddr, setSelectedDoctorAddr] = useState<string | null>(null);
   const [toggleStates, setToggleStates] = useState<Record<string, boolean>>({});
   const [allDoctors, setAllDoctors] = useState<DoctorEntry[]>([]);
+  const [showRecordPicker, setShowRecordPicker] = useState(false);
+  const [shareRecord, setShareRecord] = useState<MedicalRecord | null>(null);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
 
   const user = useUserStore((state) => state.user);
   const accessGrants = useRecordsStore((state) => state.accessGrants);
@@ -245,6 +249,12 @@ export function SharedAccessPage() {
     return { label: 'Active', className: '' };
   };
 
+  // Patient's own records for the picker
+  const userRecords = useMemo(() => {
+    if (!user?.address) return [];
+    return records.filter((r) => r.ownerAddress === user.address);
+  }, [records, user?.address]);
+
   const findRecord = (recordId: string) => {
     return records.find((r) => r.id === recordId || r.recordId === recordId);
   };
@@ -339,12 +349,55 @@ export function SharedAccessPage() {
                     {selectedGroup.activeCount} active · {selectedGroup.revokedCount} revoked · {selectedGroup.expiredCount} expired
                   </p>
                 </div>
-                {selectedGroup.activeCount > 0 && (
-                  <button className="sp-btn-revoke" onClick={handleRevokeAll}>
-                    Revoke All Access
+                <div className="sp-card-actions">
+                  <button className="sp-btn-share" onClick={() => setShowRecordPicker(true)}>
+                    + Share Record
                   </button>
-                )}
+                  {selectedGroup.activeCount > 0 && (
+                    <button className="sp-btn-revoke" onClick={handleRevokeAll}>
+                      Revoke All Access
+                    </button>
+                  )}
+                </div>
               </div>
+
+              {/* Record Picker */}
+              <AnimatePresence>
+                {showRecordPicker && (
+                  <motion.div
+                    className="sp-record-picker"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.25 }}
+                  >
+                    <p className="sp-picker-label">Select a record to share with {selectedGroup.name}:</p>
+                    <div className="sp-picker-list">
+                      {userRecords.length === 0 ? (
+                        <p className="sp-picker-empty">No records available. Create a record first.</p>
+                      ) : (
+                        userRecords.map((r) => (
+                          <button
+                            key={r.id}
+                            className="sp-picker-item"
+                            onClick={() => {
+                              setShareRecord(r);
+                              setShowRecordPicker(false);
+                              setShareModalOpen(true);
+                            }}
+                          >
+                            <div className="sp-record-icon-small">{getRecordIcon(r.recordType)}</div>
+                            <span className="sp-record-name">{getRecordDisplayData(r).title}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                    <button className="sp-picker-cancel" onClick={() => setShowRecordPicker(false)}>
+                      Cancel
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <table className="sp-records-table">
                 <thead>
@@ -414,6 +467,14 @@ export function SharedAccessPage() {
           )}
         </div>
       )}
+      {/* Share Record Modal — pre-filled with selected doctor */}
+      <ShareRecordModal
+        open={shareModalOpen}
+        onOpenChange={setShareModalOpen}
+        record={shareRecord}
+        prefillDoctorAddress={selectedGroup?.address}
+        prefillDoctorName={selectedGroup?.name}
+      />
     </SiteLayout>
   );
 }

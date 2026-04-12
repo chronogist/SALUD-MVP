@@ -161,6 +161,93 @@
   box-shadow: 0 4px 12px rgba(255, 75, 75, 0.3);
 }
 
+/* --- Card Actions --- */
+.sp-card-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.sp-btn-share {
+  padding: 10px 20px;
+  border-radius: 20px;
+  background: #3B71FE;
+  color: white;
+  font-weight: 600;
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sp-btn-share:hover {
+  background: #2b5ee0;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 113, 254, 0.3);
+}
+
+/* --- Record Picker --- */
+.sp-record-picker {
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.sp-picker-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #8E8E9E;
+  margin: 0 0 12px;
+}
+
+.sp-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.sp-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid #F0F0F5;
+  background: #FAFAFC;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Inter', sans-serif;
+  text-align: left;
+  width: 100%;
+}
+
+.sp-picker-item:hover {
+  background: #EBF0FF;
+  border-color: #3B71FE;
+}
+
+.sp-picker-empty {
+  font-size: 14px;
+  color: #8E8E9E;
+  text-align: center;
+  padding: 20px 0;
+}
+
+.sp-picker-cancel {
+  background: none;
+  border: none;
+  color: #8E8E9E;
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  padding: 6px 12px;
+}
+
+.sp-picker-cancel:hover {
+  color: #111112;
+}
+
 /* --- Records Table --- */
 .sp-records-table {
   width: 100%;
