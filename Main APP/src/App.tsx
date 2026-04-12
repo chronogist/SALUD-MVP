@@ -22,7 +22,6 @@ export default function App() {
           {/* App pages - sidebar layout */}
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/settings" element={<DashboardPage />} /> {/* TODO: Settings page */}
             <Route path="/help" element={<DashboardPage />} /> {/* TODO: Help page */}
           </Route>
         </Routes>

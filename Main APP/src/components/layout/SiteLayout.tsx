@@ -27,7 +27,6 @@ const navLinks = [
   { label: 'Overview', to: '/overview' },
   { label: 'Medical Records', to: '/records' },
   { label: 'Doctors', to: '/shared' },
-  { label: 'Insights', to: '/settings' },
 ];
 
 // --- Icons ---
@@ -183,7 +182,7 @@ export function SiteLayout({ children, mainClassName }: SiteLayoutProps) {
   return (
     <div className="hp-wrapper">
       <header className="hp-header">
-        <Link to="/overview" className="hp-logo">
+        <Link to="/" className="hp-logo">
           <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M12 2L12 22M2 12L22 12M6.5 6.5L17.5 17.5M17.5 6.5L6.5 17.5" stroke="#111112" strokeWidth="3" strokeLinecap="round" />
           </svg>

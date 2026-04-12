@@ -5,7 +5,6 @@ import {
   LayoutDashboard,
   FileText,
   Share2,
-  Settings,
   HelpCircle,
   ChevronLeft,
   ChevronRight,
@@ -27,7 +26,6 @@ const patientNavItems: NavItem[] = [
   { label: 'Dashboard', href: '/', icon: <LayoutDashboard size={20} /> },
   { label: 'My Records', href: '/records', icon: <FileText size={20} /> },
   { label: 'Shared Access', href: '/shared', icon: <Share2 size={20} /> },
-  { label: 'Settings', href: '/settings', icon: <Settings size={20} /> },
 ];
 
 const doctorNavItems: NavItem[] = [
