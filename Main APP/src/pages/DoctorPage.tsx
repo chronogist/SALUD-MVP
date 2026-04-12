@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useUserStore } from '@/store';
+import { useUserStore, useRecordsStore } from '@/store';
+import { getRecordDisplayData } from '@/types/records';
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { formatDateTime, truncateAddress, copyToClipboard } from '@/lib/utils';
 import { RECORD_TYPES, type QRCodeData, type RecordType } from '@/types/records';
@@ -22,32 +23,7 @@ interface ScannedRecord {
   accessToken: string;
 }
 
-interface SavedSharedRecord {
-  id: string;
-  title: string;
-  recordType: RecordType;
-  patientAddress: string;
-  expiresAt: string;
-  scannedAt: string;
-  transactionId: string;
-}
 
-const SHARED_RECORDS_KEY = 'salud_doctor_shared_records';
-
-function loadSharedRecords(): SavedSharedRecord[] {
-  try {
-    const stored = localStorage.getItem(SHARED_RECORDS_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch { return []; }
-}
-
-function saveSharedRecord(record: SavedSharedRecord) {
-  const existing = loadSharedRecords();
-  const dupe = existing.find((r) => r.transactionId === record.transactionId);
-  if (dupe) return;
-  const updated = [record, ...existing].slice(0, 50);
-  localStorage.setItem(SHARED_RECORDS_KEY, JSON.stringify(updated));
-}
 
 // --- Inline SVG Icons ---
 
@@ -243,7 +219,6 @@ export function DoctorPage() {
   const [regSpecialty, setRegSpecialty] = useState('');
   const [regLoading, setRegLoading] = useState(false);
   const [doctorName, setDoctorName] = useState<string | null>(null);
-  const [sharedRecords, setSharedRecords] = useState<SavedSharedRecord[]>([]);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -251,9 +226,11 @@ export function DoctorPage() {
   const user = useUserStore((state) => state.user);
   const { disconnect: disconnectUser, setRole } = useUserStore();
   const { requestRecords, decrypt, connected, disconnect: disconnectWallet } = useWallet();
+  const records = useRecordsStore((state) => state.records);
+
+  const doctorRecords = records.filter((r) => r.ownerAddress === user?.address);
 
   useEffect(() => {
-    setSharedRecords(loadSharedRecords());
     return () => { stopScanner(); };
   }, []);
 
@@ -401,7 +378,6 @@ export function DoctorPage() {
       }
 
       let foundRecord = false;
-      let foundTitle = '';
 
       if (requestRecords) {
         try {
@@ -450,7 +426,6 @@ export function DoctorPage() {
                 });
 
                 foundRecord = true;
-                foundTitle = title;
                 break;
               }
             }
@@ -474,18 +449,6 @@ export function DoctorPage() {
         });
         setScanStatus('pending');
       } else {
-        // Persist the successfully scanned record
-        const saved: SavedSharedRecord = {
-          id: `${data.tx}-${Date.now()}`,
-          title: foundTitle || RECORD_TYPES[((data.rt || 1) as RecordType)].name,
-          recordType: (data.rt || 1) as RecordType,
-          patientAddress: data.p,
-          expiresAt: new Date(data.exp).toISOString(),
-          scannedAt: new Date().toISOString(),
-          transactionId: data.tx,
-        };
-        saveSharedRecord(saved);
-        setSharedRecords(loadSharedRecords());
         setScanStatus('success');
       }
     } catch (err) {
@@ -884,8 +847,8 @@ export function DoctorPage() {
           </AnimatePresence>
         </motion.div>
 
-        {/* Shared With You — records history */}
-        {sharedRecords.length > 0 && (
+        {/* My Medical Records — doctor's own records */}
+        {user?.isConnected && (
           <motion.div
             className="dp-shared-list-card"
             initial={{ opacity: 0, y: 20 }}
@@ -894,30 +857,33 @@ export function DoctorPage() {
           >
             <h3 className="dp-shared-list-title">
               <FileTextIcon />
-              Shared With You
-              <span className="dp-shared-list-count">{sharedRecords.length}</span>
+              My Medical Records
+              {doctorRecords.length > 0 && (
+                <span className="dp-shared-list-count">{doctorRecords.length}</span>
+              )}
             </h3>
-            <div className="dp-shared-list">
-              {sharedRecords.map((rec) => {
-                const expired = new Date(rec.expiresAt) < new Date();
-                return (
-                  <div key={rec.id} className="dp-shared-item">
-                    <div className="dp-shared-item-icon">
-                      <FileTextIcon />
+            {doctorRecords.length === 0 ? (
+              <p className="dp-shared-empty">No records found for this wallet. Records will appear here once synced from the blockchain.</p>
+            ) : (
+              <div className="dp-shared-list">
+                {doctorRecords.map((rec) => {
+                  const { title } = getRecordDisplayData(rec);
+                  const typeName = RECORD_TYPES[rec.recordType as RecordType]?.name || 'Record';
+                  return (
+                    <div key={rec.id} className="dp-shared-item">
+                      <div className="dp-shared-item-icon">
+                        <FileTextIcon />
+                      </div>
+                      <div className="dp-shared-item-info">
+                        <span className="dp-shared-item-title">{title}</span>
+                        <span className="dp-shared-item-meta">{typeName}</span>
+                      </div>
+                      <span className="dp-shared-item-badge">{typeName}</span>
                     </div>
-                    <div className="dp-shared-item-info">
-                      <span className="dp-shared-item-title">{rec.title}</span>
-                      <span className="dp-shared-item-meta">
-                        From {truncateAddress(rec.patientAddress, 6, 4)} · {new Date(rec.scannedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                      </span>
-                    </div>
-                    <span className={`dp-shared-item-badge${expired ? ' expired' : ''}`}>
-                      {expired ? 'Expired' : 'Active'}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </motion.div>
         )}
 

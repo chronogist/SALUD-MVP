@@ -874,6 +874,15 @@ code.dp-pending-meta-value {
   color: #8E8E9E;
 }
 
+.dp-shared-empty {
+  font-size: 14px;
+  color: #8E8E9E;
+  text-align: center;
+  padding: 24px 16px;
+  margin: 0;
+  line-height: 1.6;
+}
+
 /* --- How It Works --- */
 .dp-how-card {
   background: #FFFFFF;
