@@ -252,6 +252,16 @@
   display: inline-block;
 }
 
+.sp-status-badge.revoked {
+  background: #FFF0F0;
+  color: #FF4B4B;
+}
+
+.sp-status-badge.expired {
+  background: #F0F0F5;
+  color: #8E8E9E;
+}
+
 .sp-status-badge.hidden {
   background: #F0F0F5;
   color: #8E8E9E;
@@ -301,6 +311,85 @@
 
 .sp-access-toggle input:checked + .sp-slider:before {
   transform: translateX(20px);
+}
+
+/* --- Empty State --- */
+.sp-empty-state {
+  text-align: center;
+  padding: 80px 32px;
+  max-width: 440px;
+  margin: 0 auto;
+}
+
+.sp-empty-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  background: #EBF0FF;
+  color: #3B71FE;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+}
+
+.sp-empty-icon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.sp-empty-state h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #111112;
+  margin: 0 0 8px;
+}
+
+.sp-empty-state p {
+  font-size: 14px;
+  color: #8E8E9E;
+  line-height: 1.6;
+}
+
+/* --- Provider Initial Avatar --- */
+.sp-provider-avatar-initial {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  border-radius: 14px;
+  background: #EBF0FF;
+  color: #3B71FE;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.sp-provider-item.active .sp-provider-avatar-initial {
+  background: #3B71FE;
+  color: #FFFFFF;
+}
+
+/* --- Shared Date --- */
+.sp-shared-date {
+  font-size: 13px;
+  color: #8E8E9E;
+}
+
+/* --- No Providers / No Grants --- */
+.sp-no-providers {
+  padding: 24px 16px;
+  text-align: center;
+  color: #8E8E9E;
+  font-size: 14px;
+}
+
+.sp-no-grants-cell {
+  text-align: center;
+  color: #8E8E9E;
+  font-size: 14px;
+  padding: 40px 16px !important;
 }
 
 /* --- Responsive --- */

@@ -1,9 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { SiteLayout } from '@/components/layout/SiteLayout';
 import { useRecordsStore, useUserStore } from '@/store';
 import { getRecordDisplayData } from '@/types/records';
 import type { AccessGrant } from '@/types/records';
+import { supabase, type DoctorEntry } from '@/lib/supabase';
+import { truncateAddress } from '@/lib/utils';
 import './SharedAccessPage.css';
 
 const fadeInUp = {
@@ -62,29 +64,13 @@ function getRecordIcon(recordType: number) {
   }
 }
 
-// Demo providers for the design
-const DEMO_PROVIDERS = [
-  {
-    id: 'aris',
-    name: 'Dr. Aris Thorne',
-    specialty: 'Primary Care',
-    avatar: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&q=80&w=150&h=150',
-  },
-  {
-    id: 'chen',
-    name: 'Dr. Elena Chen',
-    specialty: 'Cardiology',
-    avatar: 'https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&q=80&w=150&h=150',
-  },
-  {
-    id: 'miller',
-    name: 'Dr. Marcus Miller',
-    specialty: 'Radiology',
-    avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=150&h=150',
-  },
+type FilterKey = 'all' | 'active' | 'revoked' | 'expired';
+const FILTER_CHIPS: { label: string; key: FilterKey }[] = [
+  { label: 'All Providers', key: 'all' },
+  { label: 'Active Share', key: 'active' },
+  { label: 'Revoked', key: 'revoked' },
+  { label: 'Expired Access', key: 'expired' },
 ];
-
-const FILTER_CHIPS = ['All Providers', 'Active Share', 'Revoked', 'Expired Access'];
 
 // --- Helper ---
 
@@ -94,26 +80,35 @@ function safeDate(date: Date | string | number | undefined): Date {
   try { return new Date(date); } catch { return new Date(); }
 }
 
+interface EnrichedGrant extends AccessGrant {
+  isExpired: boolean;
+}
+
+interface DoctorGroup {
+  address: string;
+  name: string;
+  specialty: string;
+  grants: EnrichedGrant[];
+  activeCount: number;
+  revokedCount: number;
+  expiredCount: number;
+}
+
 // --- Main Page ---
 
 export function SharedAccessPage() {
-  const [activeFilter, setActiveFilter] = useState(0);
-  const [activeProvider, setActiveProvider] = useState(0);
+  const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
+  const [selectedDoctorAddr, setSelectedDoctorAddr] = useState<string | null>(null);
   const [toggleStates, setToggleStates] = useState<Record<string, boolean>>({});
+  const [doctorDirectory, setDoctorDirectory] = useState<Record<string, DoctorEntry>>({});
 
   const user = useUserStore((state) => state.user);
   const accessGrants = useRecordsStore((state) => state.accessGrants);
   const records = useRecordsStore((state) => state.records);
   const revokeAccessGrant = useRecordsStore((state) => state.revokeAccessGrant);
 
-  // Get user's records for the permissions table
-  const userRecords = useMemo(() => {
-    if (!user?.address) return [];
-    return records.filter((r) => r.ownerAddress === user.address);
-  }, [records, user?.address]);
-
-  // Get grants grouped info
-  const userGrants = useMemo(() => {
+  // Enrich grants with isExpired
+  const userGrants = useMemo<EnrichedGrant[]>(() => {
     return accessGrants
       .filter((g) => g.patientAddress === user?.address)
       .map((g) => ({
@@ -122,27 +117,125 @@ export function SharedAccessPage() {
       }));
   }, [accessGrants, user?.address]);
 
+  // Fetch doctor names from Supabase for all unique doctor addresses
+  useEffect(() => {
+    const addresses = [...new Set(userGrants.map((g) => g.doctorAddress))];
+    if (addresses.length === 0) return;
+
+    let cancelled = false;
+    supabase
+      .from('doctors')
+      .select('*')
+      .in('address', addresses)
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        const map: Record<string, DoctorEntry> = {};
+        for (const doc of data) map[doc.address] = doc;
+        setDoctorDirectory(map);
+      });
+
+    return () => { cancelled = true; };
+  }, [userGrants]);
+
+  // Group grants by doctor
+  const doctorGroups = useMemo<DoctorGroup[]>(() => {
+    const grouped = new Map<string, EnrichedGrant[]>();
+    for (const grant of userGrants) {
+      const list = grouped.get(grant.doctorAddress) || [];
+      list.push(grant);
+      grouped.set(grant.doctorAddress, list);
+    }
+
+    return Array.from(grouped.entries()).map(([address, grants]) => {
+      const doc = doctorDirectory[address];
+      return {
+        address,
+        name: doc?.name || truncateAddress(address, 8, 6),
+        specialty: doc?.specialty || '',
+        grants,
+        activeCount: grants.filter((g) => !g.isRevoked && !g.isExpired).length,
+        revokedCount: grants.filter((g) => g.isRevoked).length,
+        expiredCount: grants.filter((g) => g.isExpired && !g.isRevoked).length,
+      };
+    });
+  }, [userGrants, doctorDirectory]);
+
+  // Filter doctors based on active filter chip
+  const filteredGroups = useMemo(() => {
+    switch (activeFilter) {
+      case 'active':
+        return doctorGroups.filter((g) => g.activeCount > 0);
+      case 'revoked':
+        return doctorGroups.filter((g) => g.revokedCount > 0);
+      case 'expired':
+        return doctorGroups.filter((g) => g.expiredCount > 0);
+      default:
+        return doctorGroups;
+    }
+  }, [doctorGroups, activeFilter]);
+
+  // Auto-select first doctor when groups change
+  useEffect(() => {
+    if (filteredGroups.length > 0 && !filteredGroups.find((g) => g.address === selectedDoctorAddr)) {
+      setSelectedDoctorAddr(filteredGroups[0].address);
+    }
+  }, [filteredGroups, selectedDoctorAddr]);
+
+  const selectedGroup = filteredGroups.find((g) => g.address === selectedDoctorAddr) || null;
+
+  // Filter the grants within the selected group based on filter
+  const visibleGrants = useMemo(() => {
+    if (!selectedGroup) return [];
+    switch (activeFilter) {
+      case 'active':
+        return selectedGroup.grants.filter((g) => !g.isRevoked && !g.isExpired);
+      case 'revoked':
+        return selectedGroup.grants.filter((g) => g.isRevoked);
+      case 'expired':
+        return selectedGroup.grants.filter((g) => g.isExpired && !g.isRevoked);
+      default:
+        return selectedGroup.grants;
+    }
+  }, [selectedGroup, activeFilter]);
+
   const handleRevokeAll = () => {
-    const activeTokens = userGrants
+    if (!selectedGroup) return;
+    selectedGroup.grants
       .filter((g) => !g.isRevoked && !g.isExpired)
-      .map((g) => g.accessToken);
-    activeTokens.forEach((token) => revokeAccessGrant(token));
+      .forEach((g) => revokeAccessGrant(g.accessToken));
   };
 
-  const handleToggle = (recordId: string) => {
-    setToggleStates((prev) => ({
-      ...prev,
-      [recordId]: prev[recordId] === undefined ? false : !prev[recordId],
-    }));
+  const handleToggle = (grant: EnrichedGrant) => {
+    const key = grant.accessToken;
+    const currentlyOn = toggleStates[key] !== undefined
+      ? toggleStates[key]
+      : !grant.isRevoked && !grant.isExpired;
+
+    if (currentlyOn) {
+      revokeAccessGrant(grant.accessToken);
+    }
+
+    setToggleStates((prev) => ({ ...prev, [key]: !currentlyOn }));
   };
 
-  const isToggleOn = (recordId: string, grant?: AccessGrant & { isExpired: boolean }) => {
-    if (toggleStates[recordId] !== undefined) return toggleStates[recordId];
-    if (grant) return !grant.isRevoked && !grant.isExpired;
+  const isToggleOn = (grant: EnrichedGrant) => {
+    if (grant.isRevoked) return false;
+    if (grant.isExpired) return false;
+    if (toggleStates[grant.accessToken] !== undefined) return toggleStates[grant.accessToken];
     return true;
   };
 
-  const provider = DEMO_PROVIDERS[activeProvider];
+  const getGrantStatus = (grant: EnrichedGrant): { label: string; className: string } => {
+    if (grant.isRevoked) return { label: 'Revoked', className: 'revoked' };
+    if (grant.isExpired) return { label: 'Expired', className: 'expired' };
+    return { label: 'Active', className: '' };
+  };
+
+  const findRecord = (recordId: string) => {
+    return records.find((r) => r.id === recordId || r.recordId === recordId);
+  };
+
+  const hasGrants = userGrants.length > 0;
 
   return (
     <SiteLayout mainClassName="sp-main">
@@ -154,152 +247,153 @@ export function SharedAccessPage() {
 
       {/* Filter Bar */}
       <div className="sp-filter-bar">
-        {FILTER_CHIPS.map((chip, i) => (
+        {FILTER_CHIPS.map((chip) => (
           <button
-            key={chip}
-            className={`sp-filter-chip${activeFilter === i ? ' active' : ''}`}
-            onClick={() => setActiveFilter(i)}
+            key={chip.key}
+            className={`sp-filter-chip${activeFilter === chip.key ? ' active' : ''}`}
+            onClick={() => setActiveFilter(chip.key)}
           >
-            {chip}
+            {chip.label}
           </button>
         ))}
       </div>
 
-      {/* Two-column layout */}
-      <div className="sp-sharing-layout">
-        {/* Providers List */}
-        <aside className="sp-providers-list">
-          {DEMO_PROVIDERS.map((p, i) => (
-            <motion.div
-              key={p.id}
-              className={`sp-provider-item${activeProvider === i ? ' active' : ''}`}
-              onClick={() => setActiveProvider(i)}
-              custom={i}
-              initial="hidden"
-              animate="visible"
-              variants={fadeInUp}
-            >
-              <img src={p.avatar} className="sp-provider-avatar" alt={p.name} />
-              <div className="sp-provider-info">
-                <span className="sp-provider-name">{p.name}</span>
-                <span className="sp-provider-specialty">{p.specialty}</span>
-              </div>
-            </motion.div>
-          ))}
-        </aside>
-
-        {/* Permissions Card */}
-        <motion.section
-          className="sp-permissions-card"
+      {!hasGrants ? (
+        <motion.div
+          className="sp-empty-state"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: 'easeOut' }}
-          key={activeProvider}
+          transition={{ duration: 0.5 }}
         >
-          <div className="sp-card-title-row">
-            <div>
-              <h2>Permissions for {provider.name.split(' ').pop()}</h2>
-              <p className="sp-subtitle" style={{ fontSize: 13 }}>Last accessed: Today at 09:42 AM</p>
-            </div>
-            <button className="sp-btn-revoke" onClick={handleRevokeAll}>
-              Revoke All Access
-            </button>
+          <div className="sp-empty-icon">
+            <ShieldIcon />
           </div>
+          <h3>No Shared Records Yet</h3>
+          <p>
+            When you share medical records with doctors, they'll appear here so you can
+            manage permissions, revoke access, and track who has access to your data.
+          </p>
+        </motion.div>
+      ) : (
+        <div className="sp-sharing-layout">
+          {/* Providers List */}
+          <aside className="sp-providers-list">
+            {filteredGroups.length === 0 ? (
+              <div className="sp-no-providers">No providers match this filter.</div>
+            ) : (
+              filteredGroups.map((group, i) => (
+                <motion.div
+                  key={group.address}
+                  className={`sp-provider-item${selectedDoctorAddr === group.address ? ' active' : ''}`}
+                  onClick={() => setSelectedDoctorAddr(group.address)}
+                  custom={i}
+                  initial="hidden"
+                  animate="visible"
+                  variants={fadeInUp}
+                >
+                  <div className="sp-provider-avatar-initial">
+                    {group.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="sp-provider-info">
+                    <span className="sp-provider-name">{group.name}</span>
+                    <span className="sp-provider-specialty">
+                      {group.specialty || `${group.activeCount} active share${group.activeCount !== 1 ? 's' : ''}`}
+                    </span>
+                  </div>
+                </motion.div>
+              ))
+            )}
+          </aside>
 
-          <table className="sp-records-table">
-            <thead>
-              <tr>
-                <th>RECORD NAME</th>
-                <th>PERMISSION LEVEL</th>
-                <th>STATUS</th>
-                <th>ACCESS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {userRecords.length > 0 ? (
-                userRecords.map((record) => {
-                  const grant = userGrants.find((g) => g.recordId === record.id || g.recordId === record.recordId);
-                  const isActive = isToggleOn(record.id, grant as any);
+          {/* Permissions Card */}
+          {selectedGroup && (
+            <motion.section
+              className="sp-permissions-card"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+              key={selectedGroup.address}
+            >
+              <div className="sp-card-title-row">
+                <div>
+                  <h2>Permissions for {selectedGroup.name}</h2>
+                  <p className="sp-subtitle" style={{ fontSize: 13 }}>
+                    {selectedGroup.activeCount} active · {selectedGroup.revokedCount} revoked · {selectedGroup.expiredCount} expired
+                  </p>
+                </div>
+                {selectedGroup.activeCount > 0 && (
+                  <button className="sp-btn-revoke" onClick={handleRevokeAll}>
+                    Revoke All Access
+                  </button>
+                )}
+              </div>
 
-                  return (
-                    <tr key={record.id}>
-                      <td>
-                        <div className="sp-record-entry">
-                          <div className="sp-record-icon-small">
-                            {getRecordIcon(record.recordType)}
-                          </div>
-                          <span className="sp-record-name">{getRecordDisplayData(record).title}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="sp-permission-type">
-                          <select defaultValue={grant ? 'view' : 'full'}>
-                            <option value="full">Full Access</option>
-                            <option value="view">View Only</option>
-                          </select>
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`sp-status-badge${!isActive ? ' hidden' : ''}`}>
-                          {isActive ? 'Active' : 'Hidden'}
-                        </span>
-                      </td>
-                      <td>
-                        <label className="sp-access-toggle">
-                          <input
-                            type="checkbox"
-                            checked={isActive}
-                            onChange={() => handleToggle(record.id)}
-                          />
-                          <span className="sp-slider" />
-                        </label>
+              <table className="sp-records-table">
+                <thead>
+                  <tr>
+                    <th>RECORD NAME</th>
+                    <th>SHARED</th>
+                    <th>STATUS</th>
+                    <th>ACCESS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleGrants.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="sp-no-grants-cell">
+                        No {activeFilter !== 'all' ? activeFilter : ''} shares with this doctor.
                       </td>
                     </tr>
-                  );
-                })
-              ) : (
-                /* Show demo data when no records */
-                <>
-                  {[
-                    { name: 'Q3 Blood Panel', icon: <FileIcon />, perm: 'Full Access', active: true },
-                    { name: 'MRI Scan Images', icon: <ImageIcon />, perm: 'View Only', active: true },
-                    { name: 'ECG Results', icon: <HeartbeatIcon />, perm: 'View Only', active: false },
-                    { name: 'Vaccination History', icon: <ShieldIcon />, perm: 'Full Access', active: true },
-                  ].map((item, i) => (
-                    <tr key={i}>
-                      <td>
-                        <div className="sp-record-entry">
-                          <div className="sp-record-icon-small">{item.icon}</div>
-                          <span className="sp-record-name">{item.name}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="sp-permission-type">
-                          <select defaultValue={item.perm}>
-                            <option>Full Access</option>
-                            <option>View Only</option>
-                          </select>
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`sp-status-badge${!item.active ? ' hidden' : ''}`}>
-                          {item.active ? 'Active' : 'Hidden'}
-                        </span>
-                      </td>
-                      <td>
-                        <label className="sp-access-toggle">
-                          <input type="checkbox" defaultChecked={item.active} />
-                          <span className="sp-slider" />
-                        </label>
-                      </td>
-                    </tr>
-                  ))}
-                </>
-              )}
-            </tbody>
-          </table>
-        </motion.section>
-      </div>
+                  ) : (
+                    visibleGrants.map((grant) => {
+                      const record = findRecord(grant.recordId);
+                      const title = record ? getRecordDisplayData(record).title : grant.recordId;
+                      const recordType = record?.recordType ?? 1;
+                      const status = getGrantStatus(grant);
+                      const on = isToggleOn(grant);
+                      const sharedDate = safeDate(grant.grantedAt);
+
+                      return (
+                        <tr key={grant.id}>
+                          <td>
+                            <div className="sp-record-entry">
+                              <div className="sp-record-icon-small">
+                                {getRecordIcon(recordType)}
+                              </div>
+                              <span className="sp-record-name">{title}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <span className="sp-shared-date">
+                              {sharedDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`sp-status-badge ${status.className}`}>
+                              {status.label}
+                            </span>
+                          </td>
+                          <td>
+                            <label className="sp-access-toggle">
+                              <input
+                                type="checkbox"
+                                checked={on}
+                                onChange={() => handleToggle(grant)}
+                                disabled={grant.isExpired}
+                              />
+                              <span className="sp-slider" />
+                            </label>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </motion.section>
+          )}
+        </div>
+      )}
     </SiteLayout>
   );
 }
