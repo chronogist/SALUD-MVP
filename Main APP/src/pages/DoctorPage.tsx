@@ -6,7 +6,7 @@ import { useUserStore } from '@/store';
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { formatDateTime, truncateAddress, copyToClipboard } from '@/lib/utils';
 import { RECORD_TYPES, type QRCodeData, type RecordType } from '@/types/records';
-import { PROGRAM_ID, parseSharedRecordPlaintext } from '@/lib/aleo-utils';
+import { PROGRAM_ID, parseSharedRecordPlaintext, extractTitleAndDescription } from '@/lib/aleo-utils';
 import { WalletConnectModal } from '@/components/layout/WalletConnectModal';
 import './DoctorPage.css';
 
@@ -368,26 +368,19 @@ export function DoctorPage() {
               if (!parsed) continue;
 
               if (parsed.recordId === data.rid || parsed.recordId === data.rid.replace(/field$/, '')) {
-                let title = 'Shared Medical Record';
-                let description = '';
-
-                try {
-                  const jsonData = JSON.parse(parsed.data);
-                  title = jsonData.title || jsonData.t || title;
-                  description = jsonData.description || jsonData.d || description;
-                } catch {
-                  if (parsed.data && parsed.data !== '0') {
-                    title = parsed.data.slice(0, 60);
-                  }
-                }
+                const { title: extractedTitle, description: extractedDescription } =
+                  extractTitleAndDescription(parsed.data);
 
                 const recordType = (parsed.recordType >= 1 && parsed.recordType <= 10
                   ? parsed.recordType
                   : data.rt || 1) as RecordType;
 
+                const title = extractedTitle.trim() || `${RECORD_TYPES[recordType].name} Record`;
+                const description = extractedDescription.trim();
+
                 setRecordData({
                   title,
-                  description: description || 'Record data decrypted successfully.',
+                  description,
                   recordType,
                   patientAddress: parsed.originalOwner || data.p,
                   expiresAt: new Date(data.exp),

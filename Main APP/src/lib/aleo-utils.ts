@@ -245,6 +245,66 @@ export function prepareRevokeAccessInputs(accessToken: string): string[] {
 }
 
 /**
+ * Robustly extract `title` and `description` from a record's data string.
+ *
+ * The data is stored as JSON like `{"t":"...","d":"..."}` but can come back
+ * malformed for two reasons:
+ *  - the 240-byte field cap may truncate long descriptions
+ *  - the BigInt round-trip in fieldToBytes drops leading zero bytes inside
+ *    a chunk, which can corrupt the trailing bytes of the payload
+ *
+ * So we try strict JSON.parse first, then fall back to a regex extractor
+ * that walks the string character-by-character and survives missing
+ * closing quotes / braces.
+ */
+export function extractTitleAndDescription(data: string): { title: string; description: string } {
+  if (!data || data === '0') return { title: '', description: '' };
+
+  try {
+    const j = JSON.parse(data);
+    return {
+      title: String(j.title ?? j.t ?? ''),
+      description: String(j.description ?? j.d ?? ''),
+    };
+  } catch {
+    // fall through to regex extraction
+  }
+
+  return {
+    title: extractJsonStringField(data, 't') || extractJsonStringField(data, 'title'),
+    description: extractJsonStringField(data, 'd') || extractJsonStringField(data, 'description'),
+  };
+}
+
+function extractJsonStringField(s: string, key: string): string {
+  const re = new RegExp(`"${key}"\\s*:\\s*"`);
+  const m = s.match(re);
+  if (!m || m.index === undefined) return '';
+  let i = m.index + m[0].length;
+  let out = '';
+  while (i < s.length) {
+    const c = s[i];
+    if (c === '\\' && i + 1 < s.length) {
+      const n = s[i + 1];
+      if (n === '"') out += '"';
+      else if (n === '\\') out += '\\';
+      else if (n === 'n') out += '\n';
+      else if (n === 't') out += '\t';
+      else if (n === 'r') out += '\r';
+      else if (n === '/') out += '/';
+      else out += n;
+      i += 2;
+    } else if (c === '"') {
+      break;
+    } else {
+      out += c;
+      i++;
+    }
+  }
+  return out;
+}
+
+/**
  * Parse a SharedMedicalRecord plaintext from the wallet.
  * Similar to parseRecordPlaintext in useSyncRecords but for shared records.
  */
