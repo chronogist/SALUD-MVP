@@ -89,6 +89,25 @@ function SwitchIcon() {
   );
 }
 
+function HamburgerIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+
 interface SiteLayoutProps {
   children: React.ReactNode;
   mainClassName?: string;
@@ -100,6 +119,7 @@ export function SiteLayout({ children, mainClassName }: SiteLayoutProps) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [showBubble, setShowBubble] = useState(false);
@@ -169,7 +189,7 @@ export function SiteLayout({ children, mainClassName }: SiteLayoutProps) {
           </svg>
           Salud Healths
         </Link>
-        <nav className="hp-main-nav">
+        <nav className="hp-main-nav hp-desktop-nav">
           {navLinks.map((link, i) => (
             <motion.div key={link.label} custom={i + 1} initial="hidden" animate="visible" variants={slideIn}>
               <Link to={link.to} className={location.pathname === link.to ? 'active' : ''}>
@@ -179,6 +199,8 @@ export function SiteLayout({ children, mainClassName }: SiteLayoutProps) {
           ))}
         </nav>
 
+        {/* Right side: profile + hamburger */}
+        <div className="hp-header-right">
         {/* Profile / Wallet Area */}
         <motion.div
           className="hp-profile-area"
@@ -312,7 +334,51 @@ export function SiteLayout({ children, mainClassName }: SiteLayoutProps) {
             )}
           </AnimatePresence>
         </motion.div>
+
+        {/* Hamburger button — mobile only */}
+        <button
+          className="hp-hamburger"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          aria-label="Toggle menu"
+        >
+          {mobileMenuOpen ? <CloseIcon /> : <HamburgerIcon />}
+        </button>
+        </div>
       </header>
+
+      {/* Mobile nav drawer */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <>
+            <motion.div
+              className="hp-mobile-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            <motion.nav
+              className="hp-mobile-drawer"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.25, ease: 'easeOut' as const }}
+            >
+              {navLinks.map((link) => (
+                <Link
+                  key={link.label}
+                  to={link.to}
+                  className={`hp-mobile-link${location.pathname === link.to ? ' active' : ''}`}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </motion.nav>
+          </>
+        )}
+      </AnimatePresence>
       <main className={mainClassName || 'hp-main'}>
         {children}
       </main>
