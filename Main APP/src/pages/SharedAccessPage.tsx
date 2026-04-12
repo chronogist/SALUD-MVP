@@ -66,7 +66,7 @@ function getRecordIcon(recordType: number) {
 
 type FilterKey = 'all' | 'active' | 'revoked' | 'expired';
 const FILTER_CHIPS: { label: string; key: FilterKey }[] = [
-  { label: 'All Providers', key: 'all' },
+  { label: 'All Doctors', key: 'all' },
   { label: 'Active Share', key: 'active' },
   { label: 'Revoked', key: 'revoked' },
   { label: 'Expired Access', key: 'expired' },
@@ -156,7 +156,7 @@ export function SharedAccessPage() {
       };
     });
 
-    // Add registered doctors who have NO grants (for "All Providers" view)
+    // Add registered doctors who have NO grants (for "All Doctors" view)
     for (const doc of allDoctors) {
       if (!grouped.has(doc.address) && doc.address !== user?.address) {
         groups.push({
@@ -256,7 +256,7 @@ export function SharedAccessPage() {
       {/* Page Header */}
       <div className="sp-page-header">
         <h1>Data Sharing & Privacy</h1>
-        <p className="sp-subtitle">Manage which health professionals can access your medical records.</p>
+        <p className="sp-subtitle">Manage which doctors can access your medical records.</p>
       </div>
 
       {/* Filter Bar */}
@@ -282,11 +282,11 @@ export function SharedAccessPage() {
           <div className="sp-empty-icon">
             <ShieldIcon />
           </div>
-          <h3>{activeFilter === 'all' ? 'No Registered Doctors' : `No ${activeFilter === 'active' ? 'Active Shares' : activeFilter === 'revoked' ? 'Revoked Access' : 'Expired Access'}`}</h3>
+          <h3>{activeFilter === 'all' ? 'No Registered Doctors Yet' : `No ${activeFilter === 'active' ? 'Active Shares' : activeFilter === 'revoked' ? 'Revoked Access' : 'Expired Access'}`}</h3>
           <p>
             {activeFilter === 'all'
               ? 'No doctors have registered yet. Once a doctor connects their wallet on the Doctor Portal, they will appear here.'
-              : 'No doctors match this filter. Try selecting "All Providers" to see everyone.'}
+              : 'No doctors match this filter. Try selecting "All Doctors" to see everyone.'}
           </p>
         </motion.div>
       ) : (
@@ -294,7 +294,7 @@ export function SharedAccessPage() {
           {/* Providers List */}
           <aside className="sp-providers-list">
             {filteredGroups.length === 0 ? (
-              <div className="sp-no-providers">No providers match this filter.</div>
+              <div className="sp-no-providers">No doctors match this filter.</div>
             ) : (
               filteredGroups.map((group, i) => (
                 <motion.div
