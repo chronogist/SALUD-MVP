@@ -351,6 +351,20 @@
   line-height: 1.6;
 }
 
+/* --- Provider Status Dot --- */
+.sp-provider-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #E0E0E8;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.sp-provider-status-dot.active {
+  background: #00B976;
+}
+
 /* --- Provider Initial Avatar --- */
 .sp-provider-avatar-initial {
   width: 48px;

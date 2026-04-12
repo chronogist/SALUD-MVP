@@ -44,3 +44,11 @@ export async function searchDoctors(query: string): Promise<DoctorEntry[]> {
     .limit(8);
   return data || [];
 }
+
+export async function getAllDoctors(): Promise<DoctorEntry[]> {
+  const { data } = await supabase
+    .from('doctors')
+    .select('*')
+    .order('name');
+  return data || [];
+}

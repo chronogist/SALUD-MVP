@@ -4,7 +4,7 @@ import { SiteLayout } from '@/components/layout/SiteLayout';
 import { useRecordsStore, useUserStore } from '@/store';
 import { getRecordDisplayData } from '@/types/records';
 import type { AccessGrant } from '@/types/records';
-import { supabase, type DoctorEntry } from '@/lib/supabase';
+import { getAllDoctors, type DoctorEntry } from '@/lib/supabase';
 import { truncateAddress } from '@/lib/utils';
 import './SharedAccessPage.css';
 
@@ -100,7 +100,7 @@ export function SharedAccessPage() {
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
   const [selectedDoctorAddr, setSelectedDoctorAddr] = useState<string | null>(null);
   const [toggleStates, setToggleStates] = useState<Record<string, boolean>>({});
-  const [doctorDirectory, setDoctorDirectory] = useState<Record<string, DoctorEntry>>({});
+  const [allDoctors, setAllDoctors] = useState<DoctorEntry[]>([]);
 
   const user = useUserStore((state) => state.user);
   const accessGrants = useRecordsStore((state) => state.accessGrants);
@@ -117,27 +117,23 @@ export function SharedAccessPage() {
       }));
   }, [accessGrants, user?.address]);
 
-  // Fetch doctor names from Supabase for all unique doctor addresses
+  // Fetch all registered doctors from Supabase
   useEffect(() => {
-    const addresses = [...new Set(userGrants.map((g) => g.doctorAddress))];
-    if (addresses.length === 0) return;
-
     let cancelled = false;
-    supabase
-      .from('doctors')
-      .select('*')
-      .in('address', addresses)
-      .then(({ data }) => {
-        if (cancelled || !data) return;
-        const map: Record<string, DoctorEntry> = {};
-        for (const doc of data) map[doc.address] = doc;
-        setDoctorDirectory(map);
-      });
-
+    getAllDoctors().then((docs) => {
+      if (!cancelled) setAllDoctors(docs);
+    });
     return () => { cancelled = true; };
-  }, [userGrants]);
+  }, []);
 
-  // Group grants by doctor
+  // Build a lookup from address -> doctor entry
+  const doctorDirectory = useMemo(() => {
+    const map: Record<string, DoctorEntry> = {};
+    for (const doc of allDoctors) map[doc.address] = doc;
+    return map;
+  }, [allDoctors]);
+
+  // Group grants by doctor, then merge in all registered doctors
   const doctorGroups = useMemo<DoctorGroup[]>(() => {
     const grouped = new Map<string, EnrichedGrant[]>();
     for (const grant of userGrants) {
@@ -146,7 +142,8 @@ export function SharedAccessPage() {
       grouped.set(grant.doctorAddress, list);
     }
 
-    return Array.from(grouped.entries()).map(([address, grants]) => {
+    // Start with doctors who have grants
+    const groups: DoctorGroup[] = Array.from(grouped.entries()).map(([address, grants]) => {
       const doc = doctorDirectory[address];
       return {
         address,
@@ -158,7 +155,24 @@ export function SharedAccessPage() {
         expiredCount: grants.filter((g) => g.isExpired && !g.isRevoked).length,
       };
     });
-  }, [userGrants, doctorDirectory]);
+
+    // Add registered doctors who have NO grants (for "All Providers" view)
+    for (const doc of allDoctors) {
+      if (!grouped.has(doc.address) && doc.address !== user?.address) {
+        groups.push({
+          address: doc.address,
+          name: doc.name,
+          specialty: doc.specialty || '',
+          grants: [],
+          activeCount: 0,
+          revokedCount: 0,
+          expiredCount: 0,
+        });
+      }
+    }
+
+    return groups;
+  }, [userGrants, doctorDirectory, allDoctors, user?.address]);
 
   // Filter doctors based on active filter chip
   const filteredGroups = useMemo(() => {
@@ -235,7 +249,7 @@ export function SharedAccessPage() {
     return records.find((r) => r.id === recordId || r.recordId === recordId);
   };
 
-  const hasGrants = userGrants.length > 0;
+  const hasAnyDoctors = filteredGroups.length > 0;
 
   return (
     <SiteLayout mainClassName="sp-main">
@@ -258,7 +272,7 @@ export function SharedAccessPage() {
         ))}
       </div>
 
-      {!hasGrants ? (
+      {!hasAnyDoctors ? (
         <motion.div
           className="sp-empty-state"
           initial={{ opacity: 0, y: 20 }}
@@ -268,10 +282,11 @@ export function SharedAccessPage() {
           <div className="sp-empty-icon">
             <ShieldIcon />
           </div>
-          <h3>No Shared Records Yet</h3>
+          <h3>{activeFilter === 'all' ? 'No Registered Doctors' : `No ${activeFilter === 'active' ? 'Active Shares' : activeFilter === 'revoked' ? 'Revoked Access' : 'Expired Access'}`}</h3>
           <p>
-            When you share medical records with doctors, they'll appear here so you can
-            manage permissions, revoke access, and track who has access to your data.
+            {activeFilter === 'all'
+              ? 'No doctors have registered yet. Once a doctor connects their wallet on the Doctor Portal, they will appear here.'
+              : 'No doctors match this filter. Try selecting "All Providers" to see everyone.'}
           </p>
         </motion.div>
       ) : (
@@ -297,9 +312,12 @@ export function SharedAccessPage() {
                   <div className="sp-provider-info">
                     <span className="sp-provider-name">{group.name}</span>
                     <span className="sp-provider-specialty">
-                      {group.specialty || `${group.activeCount} active share${group.activeCount !== 1 ? 's' : ''}`}
+                      {group.specialty || (group.grants.length > 0
+                        ? `${group.activeCount} active share${group.activeCount !== 1 ? 's' : ''}`
+                        : 'No access')}
                     </span>
                   </div>
+                  <span className={`sp-provider-status-dot${group.activeCount > 0 ? ' active' : ''}`} />
                 </motion.div>
               ))
             )}
@@ -341,7 +359,9 @@ export function SharedAccessPage() {
                   {visibleGrants.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="sp-no-grants-cell">
-                        No {activeFilter !== 'all' ? activeFilter : ''} shares with this doctor.
+                        {selectedGroup.grants.length === 0
+                          ? 'No records have been shared with this doctor yet.'
+                          : `No ${activeFilter !== 'all' ? activeFilter : ''} shares with this doctor.`}
                       </td>
                     </tr>
                   ) : (
